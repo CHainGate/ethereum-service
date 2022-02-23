@@ -1,5 +1,6 @@
-FROM golang:1.16-alpine
+FROM golang:alpine
 
+RUN apk add build-base
 WORKDIR /app
 
 COPY go.mod ./
