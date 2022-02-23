@@ -11,6 +11,6 @@ COPY *.go ./
 
 RUN go build -o /ethereum-service
 
-EXPOSE 8080
+EXPOSE 9000
 
 CMD [ "/ethereum-service" ]
