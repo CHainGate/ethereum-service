@@ -17,7 +17,8 @@ func main() {
 	router := mux.NewRouter()
 	router.HandleFunc("/test", test).Methods("GET", "OPTIONS")
 	router.HandleFunc("/address", createAddress).Methods("GET", "OPTIONS")
-	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(8080), router))
+	log.Printf("listing on port %v", 9000)
+	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(9000), router))
 }
 
 func test(w http.ResponseWriter, r *http.Request) {
