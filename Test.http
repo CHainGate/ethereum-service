@@ -1,0 +1,9 @@
+### Send POST request with json body
+POST http://localhost:9000/payment-intent
+Content-Type: application/json
+
+{
+  "mode": 2
+}
+
+###
