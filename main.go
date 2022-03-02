@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -17,6 +20,21 @@ func main() {
 	router := mux.NewRouter()
 	router.HandleFunc("/test", test).Methods("GET", "OPTIONS")
 	router.HandleFunc("/address", createAddress).Methods("GET", "OPTIONS")
+
+	client, err := ethclient.Dial("")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("we have a connection")
+	_ = client // we'll use this in the upcoming sections
+	account := common.HexToAddress("")
+	balance, err := client.BalanceAt(context.Background(), account, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(balance)
+
 	log.Printf("listing on port %v", 9000)
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(9000), router))
 }
