@@ -3,7 +3,8 @@ POST http://localhost:9000/payment-intent
 Content-Type: application/json
 
 {
-  "mode": 2
+  "mode": 2,
+  "amount": 20000000000
 }
 
 ###
