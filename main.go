@@ -178,18 +178,21 @@ func paymentIntent(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFreeAccount() (Account, error) {
-	pk, err := crypto.HexToECDSA(opts.AccountPrivateKey)
-	if err != nil {
-		log.Fatal(err)
-	}
+	if opts.AccountPrivateKey != "" {
+		pk, err := crypto.HexToECDSA(opts.AccountPrivateKey)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	acc := Account{
-		privateKey: pk,
-		publicKey:  &pk.PublicKey,
-		address:    common.HexToAddress(crypto.PubkeyToAddress(pk.PublicKey).Hex()),
-	}
+		acc := Account{
+			privateKey: pk,
+			publicKey:  &pk.PublicKey,
+			address:    common.HexToAddress(crypto.PubkeyToAddress(pk.PublicKey).Hex()),
+		}
 
-	return acc, nil
+		return acc, nil
+	}
+	return Account{}, fmt.Errorf("unable to get free address")
 }
 
 func getAllSpectatedAccounts() []Account {
