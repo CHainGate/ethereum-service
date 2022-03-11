@@ -1,4 +1,4 @@
-module example.com/m/v2
+module ethereum-service
 
 go 1.17
 

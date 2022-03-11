@@ -77,12 +77,16 @@ func main() {
 }
 
 func test(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Test:")
-	err := json.NewEncoder(w).Encode("Test")
+	fmt.Println(getTest())
+	err := json.NewEncoder(w).Encode(getTest())
 	if err != nil {
 		return
 	}
 	return
+}
+
+func getTest() string {
+	return "Test:"
 }
 
 func getBalanceAt(client *ethclient.Client, address common.Address) (*big.Int, error) {
