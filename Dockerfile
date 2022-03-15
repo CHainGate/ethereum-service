@@ -9,6 +9,7 @@ COPY services/ ./services/
 COPY swaggerui/ ./swaggerui/
 COPY .openapi-generator-ignore ./
 COPY blockchain-service.yaml ./
+COPY wait-for-it.sh ./
 RUN go mod download
 
 COPY *.go ./
