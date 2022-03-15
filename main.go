@@ -10,20 +10,29 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"log"
 	"math/big"
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 )
 
 type OptsType struct {
 	Main              string
 	Test              string
 	AccountPrivateKey string
+	DbHost            string
+	DbUser            string
+	DbPassword        string
+	DbName            string
+	DbPort            string
 }
 
 type PaymentIntentRequest struct {
@@ -38,10 +47,12 @@ type PaymentIntent struct {
 }
 
 type Account struct {
+	Id         uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
 	publicKey  *ecdsa.PublicKey
 	privateKey *ecdsa.PrivateKey
 	address    common.Address
 	used       bool
+	PaymentId  uuid.UUID
 }
 
 var (
@@ -50,6 +61,7 @@ var (
 	clientTest     *ethclient.Client
 	accounts       []Account
 	paymentIntents []PaymentIntent
+	db             *gorm.DB
 )
 
 func main() {
@@ -62,6 +74,11 @@ func main() {
 	flag.StringVar(&o.Main, "MAIN", lookupEnv("MAIN"), "Mainnet")
 	flag.StringVar(&o.Test, "TEST", lookupEnv("TEST"), "Testnet")
 	flag.StringVar(&o.AccountPrivateKey, "ACCOUNT_PRIVATE_KEY", lookupEnv("ACCOUNT_PRIVATE_KEY"), "Account private Key")
+	flag.StringVar(&o.DbHost, "DB_HOST", lookupEnv("DB_HOST"), "Database Host")
+	flag.StringVar(&o.DbUser, "DB_USER", lookupEnv("DB_USER"), "Database User")
+	flag.StringVar(&o.DbPassword, "DB_PASSWORD", lookupEnv("DB_PASSWORD"), "Database Password")
+	flag.StringVar(&o.DbName, "DB_NAME", lookupEnv("DB_NAME"), "Database Name")
+	flag.StringVar(&o.DbPort, "DB_PORT", lookupEnv("DB_PORT"), "Database Port")
 
 	router := mux.NewRouter()
 	router.HandleFunc("/test", test).Methods("GET", "OPTIONS")
@@ -71,6 +88,8 @@ func main() {
 	createMainClientConnection(o.Main)
 	createTestClientConnection(o.Test)
 	opts = o
+
+	dbInit()
 
 	log.Printf("listing on port %v", 9000)
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(9000), router))
@@ -274,4 +293,43 @@ func writeErr(w http.ResponseWriter, code int, format string, a ...interface{}) 
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	w.WriteHeader(code)
+}
+
+type Payment struct {
+	Id            uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
+	Account       Account
+	UserWallet    string
+	Mode          string
+	PriceAmount   float64
+	PriceCurrency string
+	CreatedAt     time.Time
+	updatedAt     time.Time
+	PaymentStates []PaymentStatus
+}
+
+type PaymentStatus struct {
+	Id             uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
+	PaymentId      uuid.UUID
+	PayAmount      big.Int `gorm:"type:bigint"`
+	AmountReceived big.Int `gorm:"type:bigint"`
+	StatusName     string
+	CreatedAt      time.Time
+}
+
+func dbInit() {
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable", opts.DbHost, opts.DbUser, opts.DbPassword, opts.DbName, opts.DbPort)
+	connection, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		panic("could not connect to the database")
+	}
+
+	db = connection
+
+	err = connection.AutoMigrate(&Payment{})
+	err = connection.AutoMigrate(&PaymentStatus{})
+	err = connection.AutoMigrate(&Account{})
+
+	if err != nil {
+		return
+	}
 }
