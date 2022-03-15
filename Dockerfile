@@ -20,6 +20,8 @@ RUN npx @openapitools/openapi-generator-cli generate -i ./blockchain-service.yam
 RUN go install golang.org/x/tools/cmd/goimports@latest
 RUN goimports -w .
 
+RUN ["chmod", "+x", "wait-for-it.sh"]
+
 RUN go build -o /ethereum-service
 
 EXPOSE 9000
