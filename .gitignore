@@ -87,3 +87,7 @@ fabric.properties
 # vendor/
 
 .env
+
+.openapi-generator
+api
+openApi

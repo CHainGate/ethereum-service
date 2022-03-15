@@ -4,24 +4,26 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/json"
+	"ethereum-service/openApi"
+	"ethereum-service/services"
 	"flag"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/google/uuid"
-	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
-	"github.com/robfig/cron/v3"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"log"
 	"math/big"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/google/uuid"
+	"github.com/joho/godotenv"
+	"github.com/robfig/cron/v3"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type OptsType struct {
@@ -80,7 +82,15 @@ func main() {
 	flag.StringVar(&o.DbName, "DB_NAME", lookupEnv("DB_NAME"), "Database Name")
 	flag.StringVar(&o.DbPort, "DB_PORT", lookupEnv("DB_PORT"), "Database Port")
 
-	router := mux.NewRouter()
+	PaymentApiService := services.NewPaymentApiService()
+	PaymentApiController := openApi.NewPaymentApiController(PaymentApiService)
+
+	router := openApi.NewRouter(PaymentApiController)
+
+	// https://ribice.medium.com/serve-swaggerui-within-your-golang-application-5486748a5ed4
+	sh := http.StripPrefix("/api/swaggerui/", http.FileServer(http.Dir("./swaggerui/")))
+	router.PathPrefix("/api/swaggerui/").Handler(sh)
+
 	router.HandleFunc("/test", test).Methods("GET", "OPTIONS")
 	router.HandleFunc("/payment-intent", paymentIntent).Methods("POST", "OPTIONS")
 
