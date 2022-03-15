@@ -3,6 +3,8 @@ FROM golang:alpine
 RUN apk add build-base
 WORKDIR /app
 
+RUN apk update && apk add bash
+
 COPY go.mod ./
 COPY go.sum ./
 COPY services/ ./services/
