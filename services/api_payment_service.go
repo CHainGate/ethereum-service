@@ -11,9 +11,13 @@ package services
 
 import (
 	"context"
-	"errors"
+	"ethereum-service/database"
+	"ethereum-service/internal"
 	"ethereum-service/openApi"
+	"github.com/google/uuid"
+	"math/big"
 	"net/http"
+	"time"
 )
 
 // PaymentApiService is a service that implements the logic for the PaymentApiServicer
@@ -29,6 +33,32 @@ func NewPaymentApiService() openApi.PaymentApiServicer {
 
 // CreatePayment - create new payment
 func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest openApi.PaymentRequest) (openApi.ImplResponse, error) {
+	paymentId := uuid.New()
+
+	payAmount := int64(paymentRequest.PriceAmount) * 1000
+
+	status := internal.PaymentStatus{
+		PaymentId:      paymentId,
+		StatusName:     "waiting",
+		AmountReceived: *big.NewInt(0),
+		PayAmount:      *big.NewInt(payAmount),
+		CreatedAt:      time.Now(),
+	}
+
+	payment := internal.Payment{
+		Id:            paymentId,
+		Mode:          paymentRequest.Mode,
+		Account:       internal.GetAccount(),
+		PriceAmount:   *big.NewInt(int64(paymentRequest.PriceAmount)),
+		PriceCurrency: paymentRequest.PriceCurrency,
+		UserWallet:    paymentRequest.Wallet,
+		PaymentStates: []internal.PaymentStatus{status},
+		CreatedAt:     time.Now(),
+	}
+
+	database.DB.Create(&payment)
+
+	internal.PaymentIntents = append(internal.PaymentIntents, payment)
 	// TODO - update CreatePayment with the required logic for this service method.
 	// Add api_payment_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
 
@@ -38,5 +68,5 @@ func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest op
 	//TODO: Uncomment the next line to return response Response(400, {}) or use other options such as http.Ok ...
 	//return Response(400, nil),nil
 
-	return openApi.Response(http.StatusNotImplemented, nil), errors.New("CreatePayment method not implemented")
+	return openApi.Response(http.StatusCreated, payment), nil
 }
