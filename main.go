@@ -5,79 +5,39 @@ import (
 	"encoding/json"
 	"ethereum-service/database"
 	"ethereum-service/internal"
+	"ethereum-service/internal/config"
+	"ethereum-service/model"
 	"ethereum-service/openApi"
 	"ethereum-service/services"
-	"flag"
 	"fmt"
+	"github.com/gorilla/mux"
 	"log"
 	"math/big"
 	"net/http"
-	"os"
 	"sort"
 	"strconv"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
 )
 
-type OptsType struct {
-	Main              string
-	Test              string
-	AccountPrivateKey string
-}
-
 var (
-	opts       *OptsType
 	clientMain *ethclient.Client
 	clientTest *ethclient.Client
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Printf("Could not find env file [%v], using defaults", err)
-	}
-
-	o := &OptsType{}
-	flag.StringVar(&o.Main, "MAIN", lookupEnv("MAIN"), "Mainnet")
-	flag.StringVar(&o.Test, "TEST", lookupEnv("TEST"), "Testnet")
-
-	PaymentApiService := services.NewPaymentApiService()
-	PaymentApiController := openApi.NewPaymentApiController(PaymentApiService)
-
-	router := openApi.NewRouter(PaymentApiController)
-
-	// https://ribice.medium.com/serve-swaggerui-within-your-golang-application-5486748a5ed4
-	sh := http.StripPrefix("/api/swaggerui/", http.FileServer(http.Dir("./swaggerui/")))
-	router.PathPrefix("/api/swaggerui/").Handler(sh)
-
-	router.HandleFunc("/test", test).Methods("GET", "OPTIONS")
-	//router.HandleFunc("/payment-intent", paymentIntent).Methods("POST", "OPTIONS")
+	config.ReadOpts()
+	database.DbInit()
+	router := InitializeRouter()
 
 	createCronJob()
-	createMainClientConnection(o.Main)
-	createTestClientConnection(o.Test)
-	opts = o
-	internal.CreateInternalOps()
-	database.DbInit()
+	createMainClientConnection(config.Opts.Main)
+	createTestClientConnection(config.Opts.Test)
 
 	log.Printf("listing on port %v", 9000)
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(9000), router))
-}
-
-func test(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(getTest())
-	err := json.NewEncoder(w).Encode(getTest())
-	if err != nil {
-		return
-	}
-	return
-}
-
-func getTest() string {
-	return "Test:"
 }
 
 func getBalanceAt(client *ethclient.Client, address common.Address) (*big.Int, error) {
@@ -119,8 +79,8 @@ func createClient(connectionURI string) (*ethclient.Client, error) {
 	return client, err
 }
 
-func checkBalance(client *ethclient.Client, payIntent internal.Payment) {
-	balance, err := getBalanceAt(client, payIntent.Account.Address)
+func checkBalance(client *ethclient.Client, payIntent model.Payment) {
+	balance, err := getBalanceAt(client, common.HexToAddress(payIntent.Account.Address))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -130,9 +90,9 @@ func checkBalance(client *ethclient.Client, payIntent internal.Payment) {
 		return payIntent.PaymentStates[i].CreatedAt.After(payIntent.PaymentStates[j].CreatedAt)
 	})
 
-	if balance.Cmp(&payIntent.PaymentStates[0].PayAmount) >= 0 {
+	if balance.Cmp(payIntent.PaymentStates[0].PayAmount.BigInt()) >= 0 {
 		log.Printf("PAYMENT REACHED!!!!")
-		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payIntent.PaymentStates[0].PayAmount.String())
+		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payIntent.PaymentStates[0].PayAmount.BigInt().String())
 		/*
 			gasPrice, err := client.SuggestGasPrice(context.Background())
 			if err != nil {
@@ -163,11 +123,11 @@ func checkBalance(client *ethclient.Client, payIntent internal.Payment) {
 
 	} else {
 		log.Printf("PAYMENT still not reached")
-		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payIntent.PaymentStates[0].PayAmount.String())
+		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payIntent.PaymentStates[0].PayAmount.BigInt().String())
 	}
 }
 
-func getAllPaymentIntents() []internal.Payment {
+func getAllPaymentIntents() []model.Payment {
 	return internal.PaymentIntents
 }
 
@@ -185,23 +145,30 @@ func checkAllAddresses() {
 	}
 }
 
-func lookupEnv(key string, defaultValues ...string) string {
-	if val, ok := os.LookupEnv(key); ok {
-		return val
-	}
-	for _, v := range defaultValues {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
+func getTest() string {
+	return "Test:"
 }
 
-func writeErr(w http.ResponseWriter, code int, format string, a ...interface{}) {
-	msg := fmt.Sprintf(format, a...)
-	log.Printf(msg)
-	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
-	w.WriteHeader(code)
+func InitializeRouter() *mux.Router {
+	PaymentApiService := services.NewPaymentApiService()
+	PaymentApiController := openApi.NewPaymentApiController(PaymentApiService)
+
+	router := openApi.NewRouter(PaymentApiController)
+
+	// https://ribice.medium.com/serve-swaggerui-within-your-golang-application-5486748a5ed4
+	sh := http.StripPrefix("/api/swaggerui/", http.FileServer(http.Dir("./swaggerui/")))
+	router.PathPrefix("/api/swaggerui/").Handler(sh)
+
+	router.HandleFunc("/test", test).Methods("GET", "OPTIONS")
+	//router.HandleFunc("/payment-intent", paymentIntent).Methods("POST", "OPTIONS")
+	return router
+}
+
+func test(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(getTest())
+	err := json.NewEncoder(w).Encode(getTest())
+	if err != nil {
+		return
+	}
+	return
 }

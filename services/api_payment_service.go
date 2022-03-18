@@ -13,6 +13,7 @@ import (
 	"context"
 	"ethereum-service/database"
 	"ethereum-service/internal"
+	"ethereum-service/model"
 	"ethereum-service/openApi"
 	"github.com/google/uuid"
 	"math/big"
@@ -37,26 +38,29 @@ func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest op
 
 	payAmount := int64(paymentRequest.PriceAmount) * 1000
 
-	status := internal.PaymentStatus{
-		PaymentId:      paymentId,
+	status := model.PaymentStatus{
 		StatusName:     "waiting",
-		AmountReceived: *big.NewInt(0),
-		PayAmount:      *big.NewInt(payAmount),
+		AmountReceived: model.GormBigInt(*big.NewInt(0)),
+		PayAmount:      model.GormBigInt(*big.NewInt(payAmount)),
 		CreatedAt:      time.Now(),
 	}
 
-	payment := internal.Payment{
+	payment := model.Payment{
 		Id:            paymentId,
 		Mode:          paymentRequest.Mode,
 		Account:       internal.GetAccount(),
-		PriceAmount:   *big.NewInt(int64(paymentRequest.PriceAmount)),
+		PriceAmount:   model.GormBigInt(*big.NewInt(int64(paymentRequest.PriceAmount))),
 		PriceCurrency: paymentRequest.PriceCurrency,
 		UserWallet:    paymentRequest.Wallet,
-		PaymentStates: []internal.PaymentStatus{status},
+		PaymentStates: []model.PaymentStatus{status},
 		CreatedAt:     time.Now(),
 	}
 
 	database.DB.Create(&payment)
+
+	status.PaymentId = payment.Id
+
+	database.DB.Create(&status)
 
 	internal.PaymentIntents = append(internal.PaymentIntents, payment)
 	// TODO - update CreatePayment with the required logic for this service method.
