@@ -3,84 +3,82 @@ package model
 import (
 	"database/sql/driver"
 	"fmt"
-	"github.com/google/uuid"
+	"gorm.io/gorm"
 	"math/big"
-	"reflect"
-	"time"
+	"sort"
 )
 
 type PaymentIntent struct {
 	mode    int
 	account Account
-	amount  *GormBigInt
+	amount  *BigInt
 }
 
 type Payment struct {
-	Id         uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
+	gorm.Model
 	Account    Account
+	AccountID  uint
 	UserWallet string
 	Mode       string
 	//TODO: change to float64
-	PriceAmount   GormBigInt `gorm:"type:text"`
+	PriceAmount   *BigInt `gorm:"type:text"`
 	PriceCurrency string
-	CreatedAt     time.Time
-	updatedAt     time.Time
 	PaymentStates []PaymentStatus
 }
 
+func (p *Payment) GetActiveState() PaymentStatus {
+	//TODO: is there a better solution?
+	sort.Slice(p.PaymentStates, func(i, j int) bool {
+		return p.PaymentStates[i].CreatedAt.After(p.PaymentStates[j].CreatedAt)
+	})
+	return p.PaymentStates[0]
+}
+
+func (p *Payment) GetActiveAmount() *big.Int {
+	return &p.GetActiveState().PayAmount.Int
+}
+
 type PaymentStatus struct {
-	Id             uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
-	PaymentId      uuid.UUID
-	PayAmount      GormBigInt `gorm:"type:bigint"`
-	AmountReceived GormBigInt `gorm:"type:bigint"`
+	gorm.Model
+	AccountID      uint
+	PayAmount      *BigInt `gorm:"type:bigint"`
+	AmountReceived *BigInt `gorm:"type:bigint"`
 	StatusName     string
-	CreatedAt      time.Time
+	PaymentID      uint
 }
 
-type GormBigInt big.Int
-
-func (bi GormBigInt) BigInt() *big.Int {
-	bigI := big.Int(bi)
-	return &bigI
+type BigInt struct {
+	big.Int
 }
 
-func (bi GormBigInt) Int64() int64 {
-	bigI := big.Int(bi)
-	return bigI.Int64()
+func NewBigIntFromInt(value int64) *BigInt {
+	x := new(big.Int).SetInt64(value)
+	return NewBigInt(x)
 }
 
-func (bi GormBigInt) Bytes() []byte {
-	bigI := big.Int(bi)
-	return bigI.Bytes()
+func NewBigInt(value *big.Int) *BigInt {
+	return &BigInt{Int: *value}
 }
 
-func (bi *GormBigInt) Scan(val interface{}) error {
-	if val == nil {
-		return nil
+func (bigInt *BigInt) Value() (driver.Value, error) {
+	if bigInt == nil {
+		return "null", nil
 	}
-	var data string
-	switch v := val.(type) {
-	case []byte:
-		data = string(v)
-	case string:
-		data = v
-	case int64:
-		bigI := new(big.Int).SetInt64(v)
-		*bi = GormBigInt(*bigI)
-		return nil
-	default:
-		return fmt.Errorf("bigint: can't convert %s type to *big.Int", reflect.TypeOf(val).Kind())
-	}
+	return bigInt.String(), nil
+}
 
-	bigI, ok := new(big.Int).SetString(data, 10)
+func (bigInt *BigInt) Scan(v interface{}) error {
+	value, ok := v.(string)
 	if !ok {
-		return fmt.Errorf("bigint can't convert %s to *big.Int", data)
+		return fmt.Errorf("type error, %v", v)
 	}
-	*bi = GormBigInt(*bigI)
+	if string(value) == "null" {
+		return nil
+	}
+	data, ok := new(big.Int).SetString(string(value), 10)
+	if !ok {
+		return fmt.Errorf("not a valid big integer: %s", value)
+	}
+	bigInt.Int = *data
 	return nil
-}
-
-func (bi GormBigInt) Value() (driver.Value, error) {
-	bigI := big.Int(bi)
-	return bigI.String(), nil
 }

@@ -2,26 +2,24 @@ package internal
 
 import (
 	"crypto/ecdsa"
+	"errors"
 	"ethereum-service/database"
 	"ethereum-service/internal/config"
 	"ethereum-service/model"
 	"fmt"
+	"gorm.io/gorm"
+	"log"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"log"
 )
 
 var (
-	PaymentIntents []model.Payment
-	accounts       []model.Account
+	Payments []model.Payment
 )
 
-func GetAccount() model.Account {
-	acc, err := getFreeAccount()
-	if err != nil {
-		acc = createAccount()
-	}
-	return acc
+func GetAccount() (model.Account, error) {
+	return getFreeAccount()
 }
 
 func createAccount() model.Account {
@@ -44,16 +42,35 @@ func createAccount() model.Account {
 	fmt.Println("Address:", address)
 	account.Address = address
 
+	account.Used = true
 	result := database.DB.Create(&account) // pass pointer of data to Create
 	if result.Error != nil {
 		log.Fatal(result.Error)
 	}
 
-	accounts = append(accounts, account)
 	return account
 }
 
 func getFreeAccount() (model.Account, error) {
+	acc := model.Account{}
+	result := database.DB.Where("used = ?", "false").First(&acc)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			acc = createAccount()
+		} else {
+			return model.Account{}, result.Error
+		}
+	} else {
+		acc.Used = true
+		result = database.DB.Save(&acc)
+		if result.Error != nil {
+			return model.Account{}, result.Error
+		}
+	}
+	return acc, nil
+}
+
+func getAccountFromOptsPrivateKey() (model.Account, error) {
 	if config.Opts.AccountPrivateKey != "" {
 		pk, err := crypto.HexToECDSA(config.Opts.AccountPrivateKey)
 		if err != nil {
@@ -63,6 +80,7 @@ func getFreeAccount() (model.Account, error) {
 		acc := model.Account{
 			PrivateKey: config.Opts.AccountPrivateKey,
 			Address:    crypto.PubkeyToAddress(pk.PublicKey).Hex(),
+			Used:       true,
 		}
 
 		return acc, nil
@@ -70,10 +88,10 @@ func getFreeAccount() (model.Account, error) {
 	return model.Account{}, fmt.Errorf("unable to get free address")
 }
 
-func getPrivateKey(key string) (*ecdsa.PrivateKey, error) {
+func GetPrivateKey(key string) (*ecdsa.PrivateKey, error) {
 	return crypto.HexToECDSA(key)
 }
 
-func getPrivateKeyString(key *ecdsa.PrivateKey) string {
+func GetPrivateKeyString(key *ecdsa.PrivateKey) string {
 	return hexutil.Encode(crypto.FromECDSA(key))
 }

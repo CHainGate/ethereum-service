@@ -2,9 +2,10 @@ package config
 
 import (
 	"flag"
-	"github.com/joho/godotenv"
 	"log"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 type OptsType struct {

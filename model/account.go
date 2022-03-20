@@ -1,11 +1,14 @@
 package model
 
-import "github.com/google/uuid"
+import (
+	"gorm.io/gorm"
+)
 
 type Account struct {
-	Id         uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
-	PrivateKey string    `gorm:"type:varchar"`
-	Address    string    `gorm:"type:varchar"`
+	gorm.Model
+	PrivateKey string `gorm:"type:varchar"`
+	Address    string `gorm:"type:varchar"`
 	Used       bool
-	PaymentId  uuid.UUID
+	Payments   []Payment
+	Remainder  *BigInt `gorm:"default:0"`
 }

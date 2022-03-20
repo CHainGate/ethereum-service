@@ -15,10 +15,8 @@ import (
 	"ethereum-service/internal"
 	"ethereum-service/model"
 	"ethereum-service/openApi"
-	"github.com/google/uuid"
-	"math/big"
+	"fmt"
 	"net/http"
-	"time"
 )
 
 // PaymentApiService is a service that implements the logic for the PaymentApiServicer
@@ -34,35 +32,31 @@ func NewPaymentApiService() openApi.PaymentApiServicer {
 
 // CreatePayment - create new payment
 func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest openApi.PaymentRequest) (openApi.ImplResponse, error) {
-	paymentId := uuid.New()
-
 	payAmount := int64(paymentRequest.PriceAmount) * 1000
 
 	status := model.PaymentStatus{
 		StatusName:     "waiting",
-		AmountReceived: model.GormBigInt(*big.NewInt(0)),
-		PayAmount:      model.GormBigInt(*big.NewInt(payAmount)),
-		CreatedAt:      time.Now(),
+		AmountReceived: model.NewBigIntFromInt(0),
+		PayAmount:      model.NewBigIntFromInt(payAmount),
+	}
+
+	acc, err := internal.GetAccount()
+
+	if err != nil {
+		return openApi.Response(http.StatusInternalServerError, acc), fmt.Errorf("unable to get free address")
 	}
 
 	payment := model.Payment{
-		Id:            paymentId,
 		Mode:          paymentRequest.Mode,
-		Account:       internal.GetAccount(),
-		PriceAmount:   model.GormBigInt(*big.NewInt(int64(paymentRequest.PriceAmount))),
+		AccountID:     acc.ID,
+		PriceAmount:   model.NewBigIntFromInt(int64(paymentRequest.PriceAmount)),
 		PriceCurrency: paymentRequest.PriceCurrency,
 		UserWallet:    paymentRequest.Wallet,
 		PaymentStates: []model.PaymentStatus{status},
-		CreatedAt:     time.Now(),
 	}
 
 	database.DB.Create(&payment)
 
-	status.PaymentId = payment.Id
-
-	database.DB.Create(&status)
-
-	internal.PaymentIntents = append(internal.PaymentIntents, payment)
 	// TODO - update CreatePayment with the required logic for this service method.
 	// Add api_payment_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
 
