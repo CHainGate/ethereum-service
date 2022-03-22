@@ -19,14 +19,16 @@ func DbInit() {
 		config.Opts.DBOpts.DbPassword,
 		config.Opts.DBOpts.DbName,
 		config.Opts.DBOpts.DbPort)
-	connection, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	connection, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
 	if err != nil {
 		panic("could not connect to the database")
 	}
 
 	DB = connection
-	err = connection.AutoMigrate(&model.PaymentStatus{})
 	err = connection.AutoMigrate(&model.Payment{})
+	err = connection.AutoMigrate(&model.PaymentState{})
 	err = connection.AutoMigrate(&model.Account{})
 
 	if err != nil {

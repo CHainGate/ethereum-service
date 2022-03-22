@@ -14,10 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-var (
-	Payments []model.Payment
-)
-
 func GetAccount() (model.Account, error) {
 	return getFreeAccount()
 }

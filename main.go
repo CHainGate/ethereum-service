@@ -84,7 +84,7 @@ func getChaingateEarnings(payment model.Payment, percent int64) *big.Int {
 	chainGateEarningPercent := big.NewInt(percent)
 	remainderMerchantPercent := big.NewInt(0).Div(big.NewInt(100), chainGateEarningPercent)
 	chainGateEarnings := big.NewInt(0)
-	chainGateEarnings.Div(&payment.GetActiveState().PayAmount.Int, big.NewInt(100/remainderMerchantPercent.Int64()))
+	chainGateEarnings.Div(&payment.CurrentPaymentState.PayAmount.Int, big.NewInt(100/remainderMerchantPercent.Int64()))
 	return chainGateEarnings
 }
 
@@ -122,7 +122,7 @@ func checkBalance(client *ethclient.Client, payment model.Payment) {
 
 		chainGateEarnings := getChaingateEarnings(payment, 1)
 
-		payment.GetActiveState().PayAmount.Sub(&payment.GetActiveState().PayAmount.Int, chainGateEarnings)
+		payment.CurrentPaymentState.PayAmount.Sub(&payment.CurrentPaymentState.PayAmount.Int, chainGateEarnings)
 		payment.Account.Remainder.Add(&payment.Account.Remainder.Int, chainGateEarnings)
 
 		toAddress := common.HexToAddress("0x916C2110E4b540c8D3Bb522d40a1E42Ec149aAE8")
@@ -158,7 +158,13 @@ func checkBalance(client *ethclient.Client, payment model.Payment) {
 		fmt.Printf("tx sent: %s", signedTx.Hash().Hex()) // tx sent: 0x77006fcb3938f648e2cc65bafd27dec30b9bfbe9df41f78498b9c8b7322a249e
 
 		payment.Account.Used = false
-		database.DB.Save(&payment.Account)
+		payment.UpdatePaymentState("paid", balance)
+		database.DB.Save(&payment)
+	} else if !payment.CurrentPaymentState.IsPaid() {
+		if balance.Cmp(&payment.CurrentPaymentState.AmountReceived.Int) > 0 {
+			payment.UpdatePaymentState("partially_paid", balance)
+			database.DB.Save(&payment)
+		}
 	} else {
 		log.Printf("PAYMENT still not reached")
 		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
@@ -166,7 +172,13 @@ func checkBalance(client *ethclient.Client, payment model.Payment) {
 }
 
 func getAllPaymentIntents() []model.Payment {
-	return internal.Payments
+	var payments []model.Payment
+	database.DB.
+		Preload("CurrentPaymentState").
+		Joins("CurrentPaymentState").
+		Where("\"payment_states.\"status_name\" IN ?", []string{"waiting", "partially_paid"}).
+		Find(&payments)
+	return payments
 }
 
 func checkAllAddresses() {
@@ -205,6 +217,11 @@ func InitializeRouter() *mux.Router {
 func test(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(getTest())
 	err := json.NewEncoder(w).Encode(getTest())
+
+	var payment model.Payment
+	database.DB.Preload("CurrentPaymentState").First(&payment)
+	payment.UpdatePaymentState("paid", big.NewInt(2))
+	database.DB.Save(&payment)
 	if err != nil {
 		return
 	}

@@ -16,6 +16,8 @@ import (
 	"ethereum-service/model"
 	"ethereum-service/openApi"
 	"fmt"
+	"github.com/google/uuid"
+	"math/big"
 	"net/http"
 )
 
@@ -32,14 +34,6 @@ func NewPaymentApiService() openApi.PaymentApiServicer {
 
 // CreatePayment - create new payment
 func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest openApi.PaymentRequest) (openApi.ImplResponse, error) {
-	payAmount := int64(paymentRequest.PriceAmount) * 1000
-
-	status := model.PaymentStatus{
-		StatusName:     "waiting",
-		AmountReceived: model.NewBigIntFromInt(0),
-		PayAmount:      model.NewBigIntFromInt(payAmount),
-	}
-
 	acc, err := internal.GetAccount()
 
 	if err != nil {
@@ -52,9 +46,10 @@ func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest op
 		PriceAmount:   model.NewBigIntFromInt(int64(paymentRequest.PriceAmount)),
 		PriceCurrency: paymentRequest.PriceCurrency,
 		UserWallet:    paymentRequest.Wallet,
-		PaymentStates: []model.PaymentStatus{status},
 	}
 
+	payment.ID = uuid.New()
+	payment.AddNewPaymentState("waiting", big.NewInt(0), big.NewInt(int64(paymentRequest.PriceAmount)*1000))
 	database.DB.Create(&payment)
 
 	// TODO - update CreatePayment with the required logic for this service method.
@@ -66,5 +61,5 @@ func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest op
 	//TODO: Uncomment the next line to return response Response(400, {}) or use other options such as http.Ok ...
 	//return Response(400, nil),nil
 
-	return openApi.Response(http.StatusCreated, payment), nil
+	return openApi.Response(http.StatusCreated, paymentRequest), nil
 }
