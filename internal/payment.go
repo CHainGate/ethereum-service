@@ -7,8 +7,10 @@ import (
 	"ethereum-service/internal/config"
 	"ethereum-service/model"
 	"fmt"
-	"gorm.io/gorm"
 	"log"
+	"strings"
+
+	"gorm.io/gorm"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -85,6 +87,9 @@ func getAccountFromOptsPrivateKey() (model.Account, error) {
 }
 
 func GetPrivateKey(key string) (*ecdsa.PrivateKey, error) {
+	if strings.HasPrefix(key, "0x") {
+		key = key[2:]
+	}
 	return crypto.HexToECDSA(key)
 }
 

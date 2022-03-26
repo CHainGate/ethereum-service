@@ -47,6 +47,7 @@ components:
           type: string
         price_amount:
           type: number
+          format: double
         wallet:
           type: string
         mode:
@@ -62,6 +63,7 @@ components:
           type: integer
         price_amount:
          type: number
+         format: double
         price_currency:
          type: string
          enum:
@@ -70,7 +72,8 @@ components:
         pay_address:
          type: string
         pay_amount:
-         type: number
+          type: number
+          format: double
         pay_currency:
          type: string
          enum:

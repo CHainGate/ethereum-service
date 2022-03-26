@@ -4,6 +4,7 @@ import (
 	"ethereum-service/internal/config"
 	"ethereum-service/model"
 	"fmt"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
