@@ -91,3 +91,5 @@ fabric.properties
 .openapi-generator
 api
 openApi
+backendClientApi
+proxyClientApi
