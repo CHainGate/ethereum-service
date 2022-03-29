@@ -66,6 +66,14 @@ func (p *Payment) UpdatePaymentState(newState string, balance *big.Int) PaymentS
 	return state
 }
 
+func (p *Payment) IsNewlyPartlyPaid(balance *big.Int) bool {
+	return p.CurrentPaymentState.IsWaitingForPayment() && balance.Uint64() > 0 && balance.Cmp(&p.CurrentPaymentState.AmountReceived.Int) > 0
+}
+
+func (p *Payment) IsPaid(balance *big.Int) bool {
+	return balance.Cmp(p.GetActiveAmount()) >= 0
+}
+
 func sendState(paymentId uuid.UUID, state PaymentState) {
 	payAmount, payAmountAccuracy := new(big.Float).SetInt(&state.PayAmount.Int).Float64()
 	amountReceived, amountReceivedAccuracy := new(big.Float).SetInt(&state.AmountReceived.Int).Float64()

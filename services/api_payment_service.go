@@ -11,17 +11,14 @@ package services
 
 import (
 	"context"
-	"ethereum-service/database"
 	"ethereum-service/internal"
+	"ethereum-service/internal/dbaccess"
 	"ethereum-service/model"
 	"ethereum-service/openApi"
-	"ethereum-service/proxyClientApi"
 	"fmt"
+	"github.com/google/uuid"
 	"math/big"
 	"net/http"
-	"os"
-
-	"github.com/google/uuid"
 )
 
 // PaymentApiService is a service that implements the logic for the PaymentApiServicer
@@ -53,9 +50,7 @@ func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest op
 
 	payment.ID = uuid.New()
 
-	// response from `GetPriceConversion`: PriceConversionResponseDto
-
-	val := getETHAmount(payment)
+	val := internal.GetETHAmount(payment)
 	bigval := new(big.Float)
 	bigval.SetFloat64(*val)
 	balance := big.NewFloat(0).Mul(bigval, big.NewFloat(1000000000000000000))
@@ -63,33 +58,17 @@ func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest op
 	if accur == big.Below {
 		final.Add(final, big.NewInt(1))
 	}
-	payment.AddNewPaymentState("waiting", big.NewInt(0), final)
-	database.DB.Create(&payment)
-	return openApi.Response(http.StatusCreated, paymentRequest), nil
+	_, err = dbaccess.CreatePayment(&payment, final)
 
-	// TODO - update CreatePayment with the required logic for this service method.
-	// Add api_payment_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
-
-	//TODO: Uncomment the next line to return response Response(201, PaymentResponse{}) or use other options such as http.Ok ...
-	//return Response(201, PaymentResponse{}), nil
-
-	//TODO: Uncomment the next line to return response Response(400, {}) or use other options such as http.Ok ...
-	//return Response(400, nil),nil
-}
-
-func getETHAmount(payment model.Payment) *float64 {
-	amount := fmt.Sprintf("%g", payment.PriceAmount)
-	srcCurrency := payment.PriceCurrency
-	dstCurrency := "ETH" // string |
-	mode := "main"
-
-	configuration := proxyClientApi.NewConfiguration()
-	apiClient := proxyClientApi.NewAPIClient(configuration)
-	resp, r, err := apiClient.ConversionApi.GetPriceConversion(context.Background()).Amount(amount).SrcCurrency(srcCurrency).DstCurrency(dstCurrency).Mode(mode).Execute()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error when calling `ConversionApi.GetPriceConversion``: %v\n", err)
-		fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", r)
+	finalPayAmount, _ := bigval.Float64()
+	paymentResponse := openApi.PaymentResponse{
+		//payment.ID.String(), //Todo change openapi
+		PriceAmount:   payment.PriceAmount,
+		PriceCurrency: payment.PriceCurrency,
+		PayAddress:    payment.Account.Address,
+		PayAmount:     finalPayAmount,
+		PayCurrency:   "ETH",
+		PaymentStatus: payment.CurrentPaymentState.StatusName,
 	}
-	fmt.Fprintf(os.Stdout, "Response from `ConversionApi.GetPriceConversion`: %v\n", resp)
-	return resp.Price
+	return openApi.Response(http.StatusCreated, paymentResponse), nil
 }
