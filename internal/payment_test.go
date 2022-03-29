@@ -161,7 +161,7 @@ func TestForward(t *testing.T) {
 	client := NewTestChain(t, auth)
 
 	payAmount := big.NewInt(100000000000000)
-	gasPrice := big.NewInt(1000000000)
+	gasPrice := big.NewInt(params.InitialBaseFee)
 
 	chaingateAcc := createAccount()
 	merchantAcc := createAccount()
