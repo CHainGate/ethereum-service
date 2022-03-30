@@ -14,13 +14,13 @@ import (
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
+	geth "github.com/ethereum/go-ethereum/mobile"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	"log"
 	"math/big"
 	"regexp"
 	"testing"
-	"time"
 )
 
 func TestEthClientAddressInteraction(t *testing.T) {
@@ -128,7 +128,7 @@ func createInitialPayment(client *ethclient.Client, acc model.Account, chainID *
 		log.Fatal(err)
 	}
 
-	return tx
+	return signedTx
 }
 
 func createPayment(targetAddress string, payAmount *big.Int, acc model.Account) model.Payment {
@@ -167,27 +167,24 @@ func TestForward(t *testing.T) {
 	merchantAcc := createAccount()
 	p := createPayment(merchantAcc.Address, payAmount, *chaingateAcc)
 
-	createInitialPayment(client, *genesisAcc, big.NewInt(1337), gasPrice, chaingateAcc.Address)
+	txInitial := createInitialPayment(client, *genesisAcc, big.NewInt(1337), gasPrice, chaingateAcc.Address)
 
-	time.Sleep(500 * time.Millisecond)
+	_, err := bind.WaitMined(context.Background(), client, txInitial)
+	if err != nil {
+		t.Fatalf("Can't wait until transaction is mined %v", err)
+	}
+
 	fromBalance, err := GetBalanceAt(client, common.HexToAddress(chaingateAcc.Address))
 	if fromBalance.Cmp(payAmount) != 0 {
 		t.Fatalf(`Balance on generated wallet %q, should be %q`, fromBalance, payAmount)
 	}
 
-	/*	_, err := bind.WaitMined(context.Background(), client, txInitial)
-		if err != nil {
-			t.Fatalf("Can't wait until transaction is mined %v", err)
-		}*/
+	tx := forward(client, p, payAmount, big.NewInt(1337), gasPrice)
 
-	forward(client, p, payAmount, big.NewInt(1337), gasPrice)
-
-	/*	_, err = bind.WaitMined(context.Background(), client, tx)
-		if err != nil {
-			t.Fatalf("Can't wait until transaction is mined %v", err)
-		}*/
-
-	time.Sleep(500 * time.Millisecond)
+	_, err = bind.WaitMined(context.Background(), client, tx)
+	if err != nil {
+		t.Fatalf("Can't wait until transaction is mined %v", err)
+	}
 
 	toBalance, err := GetBalanceAt(client, common.HexToAddress(merchantAcc.Address))
 	fromBalance, err = GetBalanceAt(client, common.HexToAddress(chaingateAcc.Address))
@@ -208,6 +205,7 @@ func TestForward(t *testing.T) {
 func NewTestChain(t testing.TB, auth *bind.TransactOpts) *ethclient.Client {
 	t.Helper()
 
+	geth.SetVerbosity(1)
 	address := auth.From
 	db := rawdb.NewMemoryDatabase()
 	genesis := &core.Genesis{
@@ -239,10 +237,10 @@ func NewTestChain(t testing.TB, auth *bind.TransactOpts) *ethclient.Client {
 		t.Fatalf("can't create new ethereum service: %v", err)
 	}
 	// Import the test chain.
-	if err := n.Start(); err != nil {
+	if err = n.Start(); err != nil {
 		t.Fatalf("can't start test node: %v", err)
 	}
-	if _, err := ethservice.BlockChain().InsertChain(blocks[1:]); err != nil {
+	if _, err = ethservice.BlockChain().InsertChain(blocks[1:]); err != nil {
 		t.Fatalf("can't import test blocks: %v", err)
 	}
 
