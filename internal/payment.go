@@ -67,33 +67,57 @@ func getFreeAccount() (model.Account, error) {
 	return *acc, nil
 }
 
+func getETHFromWEI(amount *big.Int) *big.Float {
+	return big.NewFloat(0).Quo(new(big.Float).SetInt(amount), big.NewFloat(1000000000000000000))
+}
+
 func CheckBalance(client *ethclient.Client, payment model.Payment) {
-	balance, err := GetBalanceAt(client, common.HexToAddress(payment.Account.Address))
+	balance, err := GetUserBalanceAt(client, common.HexToAddress(payment.Account.Address), &payment.Account.Remainder.Int)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	if payment.IsPaid(balance) {
-		forward(client, payment, balance, nil, nil)
+		log.Printf("PAYMENT REACHED!!!!")
+		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
+		forward(client, &payment, nil, nil)
+		err = dbaccess.UpdateAccount(&payment.Account)
+		if err != nil {
+			log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
+		}
 		dbaccess.UpdatePaymentState(payment, "paid", balance)
 	} else if payment.IsNewlyPartlyPaid(balance) {
 		dbaccess.UpdatePaymentState(payment, "partially_paid", balance)
 		log.Printf("PAYMENT partly paid")
 		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
 	} else {
-		log.Printf("PAYMENT still not reached")
-		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
+		log.Printf("PAYMENT still not reached Address: %s", payment.Account.Address)
+		log.Printf("Current Payment: %s WEI, %s ETH", balance.String(), getETHFromWEI(balance).String())
+		log.Printf("Expected Payment: %s WEI, %s ETH", payment.GetActiveAmount().String(), getETHFromWEI(payment.GetActiveAmount()).String())
+		log.Printf("Please pay additional: %s WEI, %s ETH", big.NewInt(0).Sub(payment.GetActiveAmount(), balance).String(), big.NewFloat(0).Sub(getETHFromWEI(payment.GetActiveAmount()), getETHFromWEI(balance)).String())
 	}
 }
 
+/*
+	Subtracts the remainder, because this is the CHainGateEarnings
+*/
+func GetUserBalanceAt(client *ethclient.Client, address common.Address, remainder *big.Int) (*big.Int, error) {
+	realBalance, err := GetBalanceAt(client, address)
+	if err != nil {
+		return nil, err
+	}
+	return realBalance.Sub(realBalance, remainder), nil
+}
+
+// GetBalanceAt
+/*
+   Never use this Method to check if the user has paid enough, because it doesn't factor in the *Remainder*
+*/
 func GetBalanceAt(client *ethclient.Client, address common.Address) (*big.Int, error) {
 	return client.BalanceAt(context.Background(), address, nil)
 }
 
-func forward(client *ethclient.Client, payment model.Payment, balance *big.Int, chainID *big.Int, gasPrice *big.Int) *types.Transaction {
-	log.Printf("PAYMENT REACHED!!!!")
-	log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
-
+func forward(client *ethclient.Client, payment *model.Payment, chainID *big.Int, gasPrice *big.Int) *types.Transaction {
 	nonce, err := client.PendingNonceAt(context.Background(), common.HexToAddress(payment.Account.Address))
 	if err != nil {
 		log.Fatal(err)
@@ -120,19 +144,19 @@ func forward(client *ethclient.Client, payment model.Payment, balance *big.Int, 
 
 	gasLimit := uint64(21000)
 
-	chainGateEarnings := getChaingateEarnings(payment, 1)
-
-	payment.CurrentPaymentState.PayAmount.Sub(&payment.CurrentPaymentState.PayAmount.Int, chainGateEarnings)
+	chainGateEarnings := getChaingateEarnings(*payment, 1)
 	payment.Account.Remainder.Add(&payment.Account.Remainder.Int, chainGateEarnings)
 
-	toAddress := common.HexToAddress(payment.UserWallet)
 	fees := big.NewInt(0).Mul(big.NewInt(21000), gasPrice)
-	fmt.Printf("gasPrice: %s\n", gasPrice.String())
+	feesAndChangateEarnings := big.NewInt(0).Add(fees, chainGateEarnings)
 
+	fmt.Printf("gasPrice: %s\n", gasPrice.String())
+	fmt.Printf("chainGateEarnings: %s\n", chainGateEarnings.String())
 	fmt.Printf("Fees: %s\n", fees.String())
-	finalAmount := big.NewInt(0).Sub(payment.GetActiveAmount(), fees)
+	finalAmount := big.NewInt(0).Sub(payment.GetActiveAmount(), feesAndChangateEarnings)
 	fmt.Printf("finalAmount: %s\n", finalAmount.String())
 
+	toAddress := common.HexToAddress(payment.UserWallet)
 	// Transaction fees and Gas explained: https://docs.avax.network/learn/platform-overview/transaction-fees
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   chainID,
@@ -158,8 +182,9 @@ func forward(client *ethclient.Client, payment model.Payment, balance *big.Int, 
 		log.Fatal(err)
 	}
 
-	fmt.Printf("tx sent: %s\n", signedTx.Hash().Hex()) // tx sent: 0x77006fcb3938f648e2cc65bafd27dec30b9bfbe9df41f78498b9c8b7322a249e
+	fmt.Printf("tx sent: %s\n", signedTx.Hash().Hex())
 	payment.Account.Used = false
+	payment.Account.Nonce = payment.Account.Nonce + 1
 	return signedTx
 }
 

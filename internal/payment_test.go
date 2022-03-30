@@ -31,7 +31,7 @@ func TestEthClientAddressInteraction(t *testing.T) {
 	acc := createAccount()
 
 	address := common.HexToAddress(acc.Address)
-	balance, err := GetBalanceAt(client, address) // nil is latest block
+	balance, err := GetUserBalanceAt(client, address, &acc.Remainder.Int) // nil is latest block
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -161,39 +161,58 @@ func TestForward(t *testing.T) {
 	client := NewTestChain(t, auth)
 
 	payAmount := big.NewInt(100000000000000)
+	shouldChainGateEarnings := big.NewInt(1000000000000)
 	gasPrice := big.NewInt(params.InitialBaseFee)
+	chainID := big.NewInt(1337)
 
 	chaingateAcc := createAccount()
 	merchantAcc := createAccount()
 	p := createPayment(merchantAcc.Address, payAmount, *chaingateAcc)
 
-	txInitial := createInitialPayment(client, *genesisAcc, big.NewInt(1337), gasPrice, chaingateAcc.Address)
+	txInitial := createInitialPayment(client, *genesisAcc, chainID, gasPrice, chaingateAcc.Address)
 
 	_, err := bind.WaitMined(context.Background(), client, txInitial)
 	if err != nil {
 		t.Fatalf("Can't wait until transaction is mined %v", err)
 	}
 
-	fromBalance, err := GetBalanceAt(client, common.HexToAddress(chaingateAcc.Address))
+	fromBalance, err := GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &p.Account.Remainder.Int)
 	if fromBalance.Cmp(payAmount) != 0 {
 		t.Fatalf(`Balance on generated wallet %q, should be %q`, fromBalance, payAmount)
 	}
 
-	tx := forward(client, p, payAmount, big.NewInt(1337), gasPrice)
+	tx := forward(client, &p, chainID, gasPrice)
+
+	if p.Account.Used == true {
+		t.Fatalf(`The used wallet is: %v, should be %v`, p.Account.Used, false)
+	}
+
+	if p.Account.Nonce != 1 {
+		t.Fatalf(`Nonce is: %v, should be %v`, p.Account.Nonce, 1)
+	}
+
+	if fromBalance.Cmp(payAmount) != 0 {
+		t.Fatalf(`Balance on generated wallet is: %q, should be %q`, fromBalance, payAmount)
+	}
 
 	_, err = bind.WaitMined(context.Background(), client, tx)
 	if err != nil {
 		t.Fatalf("Can't wait until transaction is mined %v", err)
 	}
 
-	toBalance, err := GetBalanceAt(client, common.HexToAddress(merchantAcc.Address))
-	fromBalance, err = GetBalanceAt(client, common.HexToAddress(chaingateAcc.Address))
+	toBalance, err := GetUserBalanceAt(client, common.HexToAddress(merchantAcc.Address), &p.Account.Remainder.Int)
+	fromBalance, err = GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &p.Account.Remainder.Int)
 	if err != nil {
 		t.Fatalf("Can't get balance %v", err)
 	}
 
 	fees := big.NewInt(0).Mul(big.NewInt(21000), gasPrice)
-	finalAmount := payAmount.Sub(payAmount, fees)
+	chainGateEarnings := getChaingateEarnings(p, 1)
+	if chainGateEarnings.Cmp(shouldChainGateEarnings) != 0 {
+		t.Fatalf(`CHainGate earnings is %q, should be %q`, chainGateEarnings, shouldChainGateEarnings)
+	}
+
+	finalAmount := payAmount.Sub(payAmount, fees.Add(fees, chainGateEarnings))
 	if toBalance.Cmp(finalAmount) != 0 {
 		t.Fatalf(`%q, should be %q`, toBalance, finalAmount)
 	}
