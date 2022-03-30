@@ -192,7 +192,7 @@ func TestForward(t *testing.T) {
 	}
 
 	if fromBalance.Cmp(payAmount) != 0 {
-		t.Fatalf(`Balance on generated wallet is: %q, should be %q`, fromBalance, payAmount)
+		t.Fatalf(`Balance on generated wallet is: %v, should be %v`, fromBalance, payAmount)
 	}
 
 	_, err = bind.WaitMined(context.Background(), client, tx)
@@ -200,8 +200,9 @@ func TestForward(t *testing.T) {
 		t.Fatalf("Can't wait until transaction is mined %v", err)
 	}
 
-	toBalance, err := GetUserBalanceAt(client, common.HexToAddress(merchantAcc.Address), &p.Account.Remainder.Int)
-	fromBalance, err = GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &p.Account.Remainder.Int)
+	toBalance, err := GetUserBalanceAt(client, common.HexToAddress(merchantAcc.Address), &merchantAcc.Remainder.Int)
+	fromUserBalance, err := GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &chaingateAcc.Remainder.Int)
+	fromRealBalance, err := GetBalanceAt(client, common.HexToAddress(chaingateAcc.Address))
 	if err != nil {
 		t.Fatalf("Can't get balance %v", err)
 	}
@@ -209,15 +210,18 @@ func TestForward(t *testing.T) {
 	fees := big.NewInt(0).Mul(big.NewInt(21000), gasPrice)
 	chainGateEarnings := getChaingateEarnings(p, 1)
 	if chainGateEarnings.Cmp(shouldChainGateEarnings) != 0 {
-		t.Fatalf(`CHainGate earnings is %q, should be %q`, chainGateEarnings, shouldChainGateEarnings)
+		t.Fatalf(`CHainGate earnings is %v, should be %v`, chainGateEarnings, shouldChainGateEarnings)
 	}
 
 	finalAmount := payAmount.Sub(payAmount, fees.Add(fees, chainGateEarnings))
 	if toBalance.Cmp(finalAmount) != 0 {
-		t.Fatalf(`%q, should be %q`, toBalance, finalAmount)
+		t.Fatalf(`%v, should be %v`, toBalance, finalAmount)
 	}
-	if fromBalance.Cmp(&p.Account.Remainder.Int) != 0 {
-		t.Fatalf(`%q, should be %q`, fromBalance, p.Account.Remainder)
+	if fromUserBalance.Cmp(big.NewInt(0)) != 0 {
+		t.Fatalf(`%v, should be %v`, fromUserBalance, big.NewInt(0))
+	}
+	if fromRealBalance.Cmp(&p.Account.Remainder.Int) != 0 {
+		t.Fatalf(`%v, should be %v`, fromRealBalance, p.Account.Remainder)
 	}
 }
 
