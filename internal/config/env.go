@@ -45,8 +45,8 @@ func ReadOpts() {
 	}
 
 	o := &OptsType{}
-	flag.StringVar(&o.Main, "MAIN", lookupEnv("MAIN"), "Mainnet")
-	flag.StringVar(&o.Test, "TEST", lookupEnv("TEST"), "Testnet")
+	flag.StringVar(&o.Main, "MAIN", lookupEnv("MAIN", "https://mainnet.infura.io/v3/"), "Mainnet")
+	flag.StringVar(&o.Test, "TEST", lookupEnv("TEST", "https://rinkeby.infura.io/v3/"), "Testnet")
 	flag.StringVar(&o.DBOpts.DbHost, "DB_HOST", lookupEnv("DB_HOST"), "Database Host")
 	flag.StringVar(&o.DBOpts.DbUser, "DB_USER", lookupEnv("DB_USER"), "Database User")
 	flag.StringVar(&o.DBOpts.DbPassword, "DB_PASSWORD", lookupEnv("DB_PASSWORD"), "Database Password")
