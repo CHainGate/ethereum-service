@@ -14,23 +14,18 @@ import (
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/miner"
 	geth "github.com/ethereum/go-ethereum/mobile"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	"log"
 	"math/big"
-	"os"
 	"regexp"
 	"testing"
 )
 
 var (
-	genesisAcc   *model.Account
-	client       *ethclient.Client
-	gasPrice     *big.Int
-	chainID      *big.Int
-	primaryMiner *miner.Miner
+	gasPrice *big.Int
+	chainID  *big.Int
 )
 
 func TestEthClientAddressInteraction(t *testing.T) {
@@ -84,49 +79,41 @@ func TestCreateAccount(t *testing.T) {
 	}
 }
 
-func setup() {
-	genesisAcc = createAccount()
+func customChainSetup(t *testing.T) (*model.Account, *ethclient.Client) {
+	genesisAcc := createAccount()
 	pk, _ := GetPrivateKey(genesisAcc.PrivateKey)
 	auth, _ := NewAuth(pk, context.Background())
-	client = NewTestChain(auth)
+	client := NewTestChain(t, auth)
 	gasPrice = big.NewInt(params.InitialBaseFee)
 	chainID = big.NewInt(1337)
-}
 
-func shutdown() {
-	client.Close()
-	primaryMiner.Stop()
-}
-
-func TestMain(m *testing.M) {
-	setup()
-	code := m.Run()
-	shutdown()
-	os.Exit(code)
+	return genesisAcc, client
 }
 
 func TestSingleForward(t *testing.T) {
-	chaingateAcc, payAmount := setupFirstPayment(t)
-	createForwardWithTest(t, chaingateAcc, payAmount)
+	genesisAcc, client := customChainSetup(t)
+	chaingateAcc, payAmount := setupFirstPayment(t, client, genesisAcc)
+	createForwardWithTest(t, client, chaingateAcc, payAmount)
 }
 
 func TestWalletReusage(t *testing.T) {
-	chaingateAcc, payAmount := setupFirstPayment(t)
-	createForwardWithTest(t, chaingateAcc, payAmount)
+	genesisAcc, client := customChainSetup(t)
+	chaingateAcc, payAmount := setupFirstPayment(t, client, genesisAcc)
+	createForwardWithTest(t, client, chaingateAcc, payAmount)
 
-	txInitial := createInitialPayment(payAmount, chaingateAcc.Address)
+	txInitial := createInitialPayment(client, genesisAcc, payAmount, chaingateAcc.Address)
 	_, err := bind.WaitMined(context.Background(), client, txInitial)
 	if err != nil {
 		t.Fatalf("Can't wait until transaction is mined %v", err)
 	}
 
-	createForwardWithTest(t, chaingateAcc, payAmount)
+	createForwardWithTest(t, client, chaingateAcc, payAmount)
 }
 
-func setupFirstPayment(t *testing.T) (*model.Account, *big.Int) {
+func setupFirstPayment(t *testing.T, client *ethclient.Client, genesisAcc *model.Account) (*model.Account, *big.Int) {
 	chaingateAcc := createAccount()
 	payAmount := big.NewInt(100000000000000)
-	txInitial := createInitialPayment(payAmount, chaingateAcc.Address)
+	txInitial := createInitialPayment(client, genesisAcc, payAmount, chaingateAcc.Address)
 
 	_, err := bind.WaitMined(context.Background(), client, txInitial)
 	if err != nil {
@@ -159,7 +146,7 @@ func createPayment(targetAddress string, payAmount *big.Int, acc model.Account) 
 	return p
 }
 
-func createInitialPayment(payAmount *big.Int, targetAddress string) *types.Transaction {
+func createInitialPayment(client *ethclient.Client, genesisAcc *model.Account, payAmount *big.Int, targetAddress string) *types.Transaction {
 	nonce, err := client.PendingNonceAt(context.Background(), common.HexToAddress(genesisAcc.Address))
 	if err != nil {
 		log.Fatal(err)
@@ -216,7 +203,7 @@ func createInitialPayment(payAmount *big.Int, targetAddress string) *types.Trans
 	return signedTx
 }
 
-func createForwardWithTest(t *testing.T, chaingateAcc *model.Account, payAmount *big.Int) {
+func createForwardWithTest(t *testing.T, client *ethclient.Client, chaingateAcc *model.Account, payAmount *big.Int) {
 	shouldChainGateEarnings := big.NewInt(1000000000000)
 	merchantAcc := createAccount()
 	p := createPayment(merchantAcc.Address, payAmount, *chaingateAcc)
@@ -270,13 +257,13 @@ func createForwardWithTest(t *testing.T, chaingateAcc *model.Account, payAmount 
 	}
 }
 
-func NewTestChain(auth *bind.TransactOpts) *ethclient.Client {
+func NewTestChain(t *testing.T, auth *bind.TransactOpts) *ethclient.Client {
 	geth.SetVerbosity(0)
 	address := auth.From
 	db := rawdb.NewMemoryDatabase()
 	genesis := &core.Genesis{
 		Config:    params.AllEthashProtocolChanges,
-		Alloc:     core.GenesisAlloc{address: {Balance: big.NewInt(1000000000000000000)}},
+		Alloc:     core.GenesisAlloc{address: {Balance: big.NewInt(0).Mul(big.NewInt(1000000000000000000), big.NewInt(100000000))}},
 		ExtraData: []byte("test genesis"),
 		Timestamp: 9000,
 		BaseFee:   big.NewInt(params.InitialBaseFee),
@@ -314,10 +301,15 @@ func NewTestChain(auth *bind.TransactOpts) *ethclient.Client {
 	if err != nil {
 		log.Fatalf("creating rpc: %v", err)
 	}
-	primaryMiner = ethservice.Miner()
+	primaryMiner := ethservice.Miner()
 	go primaryMiner.Start(auth.From)
 
-	client = ethclient.NewClient(rpc)
+	client := ethclient.NewClient(rpc)
+
+	t.Cleanup(func() {
+		client.Close()
+		primaryMiner.Stop()
+	})
 
 	return client
 }
