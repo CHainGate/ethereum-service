@@ -114,7 +114,7 @@ func TestWalletReusage(t *testing.T) {
 	chaingateAcc, payAmount := setupFirstPayment(t)
 	createForwardWithTest(t, chaingateAcc, payAmount)
 
-	txInitial := createInitialPayment(client, *genesisAcc, chainID, gasPrice, payAmount, chaingateAcc.Address)
+	txInitial := createInitialPayment(payAmount, chaingateAcc.Address)
 	_, err := bind.WaitMined(context.Background(), client, txInitial)
 	if err != nil {
 		t.Fatalf("Can't wait until transaction is mined %v", err)
@@ -126,7 +126,7 @@ func TestWalletReusage(t *testing.T) {
 func setupFirstPayment(t *testing.T) (*model.Account, *big.Int) {
 	chaingateAcc := createAccount()
 	payAmount := big.NewInt(100000000000000)
-	txInitial := createInitialPayment(client, *genesisAcc, chainID, gasPrice, payAmount, chaingateAcc.Address)
+	txInitial := createInitialPayment(payAmount, chaingateAcc.Address)
 
 	_, err := bind.WaitMined(context.Background(), client, txInitial)
 	if err != nil {
@@ -159,8 +159,8 @@ func createPayment(targetAddress string, payAmount *big.Int, acc model.Account) 
 	return p
 }
 
-func createInitialPayment(client *ethclient.Client, acc model.Account, chainID *big.Int, gasPrice *big.Int, payAmount *big.Int, targetAddress string) *types.Transaction {
-	nonce, err := client.PendingNonceAt(context.Background(), common.HexToAddress(acc.Address))
+func createInitialPayment(payAmount *big.Int, targetAddress string) *types.Transaction {
+	nonce, err := client.PendingNonceAt(context.Background(), common.HexToAddress(genesisAcc.Address))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -199,7 +199,7 @@ func createInitialPayment(client *ethclient.Client, acc model.Account, chainID *
 		Value:     payAmount,
 	})
 
-	key, err := GetPrivateKey(acc.PrivateKey)
+	key, err := GetPrivateKey(genesisAcc.PrivateKey)
 	if err != nil {
 		log.Fatal(err)
 	}
