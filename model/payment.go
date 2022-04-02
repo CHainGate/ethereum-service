@@ -1,13 +1,17 @@
 package model
 
 import (
+	"context"
 	"database/sql/driver"
+	"ethereum-service/backendClientApi"
 	"fmt"
-	"github.com/google/uuid"
-	"gorm.io/gorm"
 	"math/big"
+	"os"
 	"reflect"
 	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type Base struct {
@@ -24,7 +28,7 @@ type Payment struct {
 	UserWallet string
 	Mode       string
 	//TODO: change to float64
-	PriceAmount           *BigInt `gorm:"type:bigint;default:0"`
+	PriceAmount           float64 `gorm:"type:numeric(30,15);default:0"`
 	PriceCurrency         string
 	CurrentPaymentStateId *uuid.UUID     `gorm:"type:uuid"`
 	CurrentPaymentState   PaymentState   `gorm:"foreignKey:CurrentPaymentStateId"`
@@ -57,7 +61,37 @@ func (p *Payment) UpdatePaymentState(newState string, balance *big.Int) PaymentS
 	}
 	p.CurrentPaymentState = state
 	p.PaymentStates = append(p.PaymentStates, state)
+
+	sendState(p.ID, state)
 	return state
+}
+
+func (p *Payment) IsNewlyPartlyPaid(balance *big.Int) bool {
+	return p.CurrentPaymentState.IsWaitingForPayment() && balance.Uint64() > 0 && balance.Cmp(&p.CurrentPaymentState.AmountReceived.Int) > 0
+}
+
+func (p *Payment) IsPaid(balance *big.Int) bool {
+	return balance.Cmp(p.GetActiveAmount()) >= 0
+}
+
+func sendState(paymentId uuid.UUID, state PaymentState) {
+	payAmount, payAmountAccuracy := new(big.Float).SetInt(&state.PayAmount.Int).Float64()
+	amountReceived, amountReceivedAccuracy := new(big.Float).SetInt(&state.AmountReceived.Int).Float64()
+	if payAmountAccuracy == big.Exact && amountReceivedAccuracy == big.Exact {
+		paymentUpdateDto := *backendClientApi.NewPaymentUpdateDto(paymentId.String(), payAmount, "ETH", *backendClientApi.NewNullableFloat64(&amountReceived), state.StatusName) // PaymentUpdateDto |  (optional)
+
+		configuration := backendClientApi.NewConfiguration()
+		apiClient := backendClientApi.NewAPIClient(configuration)
+		resp, err := apiClient.PaymentUpdateApi.UpdatePayment(context.Background()).PaymentUpdateDto(paymentUpdateDto).Execute()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error when calling `PaymentUpdateApi.UpdatePayment``: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", resp)
+		} else {
+			fmt.Printf("Updated sended: Payment %s with updated to: %s", paymentId.String(), state.StatusName)
+		}
+	} else {
+		// TODO handle too big or too small numbers
+	}
 }
 
 /*
@@ -79,14 +113,18 @@ func (p *Payment) AddNewPaymentState(newState string, balance *big.Int, payAmoun
 type PaymentState struct {
 	Base
 	AccountID      uuid.UUID `gorm:"type:uuid;"`
-	PayAmount      *BigInt   `gorm:"type:bigint;default:0"`
-	AmountReceived *BigInt   `gorm:"type:bigint;default:0"`
+	PayAmount      *BigInt   `gorm:"type:numeric(30);default:0"`
+	AmountReceived *BigInt   `gorm:"type:numeric(30);default:0"`
 	StatusName     string
 	PaymentID      uuid.UUID `gorm:"type:uuid"`
 }
 
-func (ps *PaymentState) IsPaid() bool {
+func (ps *PaymentState) IsWaitingForPayment() bool {
 	return ps.StatusName == "partially_paid" || ps.StatusName == "waiting"
+}
+
+func (ps *PaymentState) IsPaid() bool {
+	return ps.StatusName == "paid"
 }
 
 type BigInt struct {

@@ -11,8 +11,8 @@ package services
 
 import (
 	"context"
-	"ethereum-service/database"
 	"ethereum-service/internal"
+	"ethereum-service/internal/dbaccess"
 	"ethereum-service/model"
 	"ethereum-service/openApi"
 	"fmt"
@@ -43,23 +43,32 @@ func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest op
 	payment := model.Payment{
 		Mode:          paymentRequest.Mode,
 		AccountID:     acc.ID,
-		PriceAmount:   model.NewBigIntFromInt(int64(paymentRequest.PriceAmount)),
+		PriceAmount:   paymentRequest.PriceAmount,
 		PriceCurrency: paymentRequest.PriceCurrency,
 		UserWallet:    paymentRequest.Wallet,
 	}
 
 	payment.ID = uuid.New()
-	payment.AddNewPaymentState("waiting", big.NewInt(0), big.NewInt(int64(paymentRequest.PriceAmount)*1000))
-	database.DB.Create(&payment)
 
-	// TODO - update CreatePayment with the required logic for this service method.
-	// Add api_payment_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	val := internal.GetETHAmount(payment)
+	bigval := new(big.Float)
+	bigval.SetFloat64(*val)
+	balance := big.NewFloat(0).Mul(bigval, big.NewFloat(1000000000000000000))
+	final, accur := balance.Int(nil)
+	if accur == big.Below {
+		final.Add(final, big.NewInt(1))
+	}
+	_, err = dbaccess.CreatePayment(&payment, final)
 
-	//TODO: Uncomment the next line to return response Response(201, PaymentResponse{}) or use other options such as http.Ok ...
-	//return Response(201, PaymentResponse{}), nil
-
-	//TODO: Uncomment the next line to return response Response(400, {}) or use other options such as http.Ok ...
-	//return Response(400, nil),nil
-
-	return openApi.Response(http.StatusCreated, paymentRequest), nil
+	finalPayAmount, _ := bigval.Float64()
+	paymentResponse := openApi.PaymentResponse{
+		//payment.ID.String(), //Todo change openapi
+		PriceAmount:   payment.PriceAmount,
+		PriceCurrency: payment.PriceCurrency,
+		PayAddress:    payment.Account.Address,
+		PayAmount:     finalPayAmount,
+		PayCurrency:   "ETH",
+		PaymentStatus: payment.CurrentPaymentState.StatusName,
+	}
+	return openApi.Response(http.StatusCreated, paymentResponse), nil
 }
