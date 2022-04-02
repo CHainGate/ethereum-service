@@ -39,9 +39,10 @@ components:
       title: Payment Request
       type: object
       required:
-        - payment_id
         - price_currency
         - price_amount
+        - wallet
+        - mode
       properties:
         price_currency:
           type: string
