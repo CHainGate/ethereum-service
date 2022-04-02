@@ -69,7 +69,8 @@ components:
         - payment_status
       properties:
         payment_id:
-          type: integer
+          type: string
+          format: uuid
         price_amount:
          type: number
          format: double
