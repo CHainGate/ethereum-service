@@ -62,7 +62,7 @@ func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest op
 
 	finalPayAmount, _ := bigval.Float64()
 	paymentResponse := openApi.PaymentResponse{
-		//payment.ID.String(), //Todo change openapi
+		PaymentId:     payment.ID.String(),
 		PriceAmount:   payment.PriceAmount,
 		PriceCurrency: payment.PriceCurrency,
 		PayAddress:    payment.Account.Address,
