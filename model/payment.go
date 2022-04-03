@@ -23,7 +23,7 @@ type Base struct {
 
 type Payment struct {
 	Base
-	Account    Account
+	Account    *Account
 	AccountID  uuid.UUID `gorm:"type:uuid"`
 	UserWallet string
 	Mode       string

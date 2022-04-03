@@ -4,15 +4,17 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
-	"ethereum-service/internal/dbaccess"
+	repository "ethereum-service/internal/repository"
 	"ethereum-service/model"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"log"
 	"math/big"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 
 	"gorm.io/gorm"
 
@@ -24,7 +26,7 @@ func GetAccount() (model.Account, error) {
 	return getFreeAccount()
 }
 
-func createAccount() *model.Account {
+func CreateAccount() *model.Account {
 	account := model.Account{}
 	privateKey, err := crypto.GenerateKey()
 	if err != nil {
@@ -49,17 +51,17 @@ func createAccount() *model.Account {
 }
 
 func getFreeAccount() (model.Account, error) {
-	result, acc := dbaccess.GetFreeAccount()
+	result, acc := repository.Account.GetFreeAccount()
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			acc = createAccount()
-			dbaccess.CreateAccount(acc)
+			acc = CreateAccount()
+			repository.Account.CreateAccount(acc)
 		} else {
 			return model.Account{}, result.Error
 		}
 	} else {
 		acc.Used = true
-		err := dbaccess.UpdateAccount(acc)
+		err := repository.Account.UpdateAccount(acc)
 		if err != nil {
 			return model.Account{}, result.Error
 		}
@@ -80,14 +82,15 @@ func CheckBalance(client *ethclient.Client, payment model.Payment) {
 	if payment.IsPaid(balance) {
 		log.Printf("PAYMENT REACHED!!!!")
 		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
+		repository.Payment.UpdatePaymentState(payment, "paid", balance)
 		forward(client, &payment, nil, nil)
-		err = dbaccess.UpdateAccount(&payment.Account)
+		err = repository.Account.UpdateAccount(payment.Account)
 		if err != nil {
 			log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
 		}
-		dbaccess.UpdatePaymentState(payment, "paid", balance)
+		repository.Payment.UpdatePaymentState(payment, "finished", balance)
 	} else if payment.IsNewlyPartlyPaid(balance) {
-		dbaccess.UpdatePaymentState(payment, "partially_paid", balance)
+		repository.Payment.UpdatePaymentState(payment, "partially_paid", balance)
 		log.Printf("PAYMENT partly paid")
 		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
 	} else {
@@ -118,7 +121,7 @@ func GetBalanceAt(client *ethclient.Client, address common.Address) (*big.Int, e
 }
 
 func forward(client *ethclient.Client, payment *model.Payment, chainID *big.Int, gasPrice *big.Int) *types.Transaction {
-	nonce, err := client.PendingNonceAt(context.Background(), common.HexToAddress(payment.Account.Address))
+	gasTipCap, err := client.SuggestGasTipCap(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -128,11 +131,6 @@ func forward(client *ethclient.Client, payment *model.Payment, chainID *big.Int,
 		if err != nil {
 			log.Fatal(err)
 		}
-	}
-
-	gasTipCap, err := client.SuggestGasTipCap(context.Background())
-	if err != nil {
-		log.Fatal(err)
 	}
 
 	if chainID == nil {
@@ -160,7 +158,7 @@ func forward(client *ethclient.Client, payment *model.Payment, chainID *big.Int,
 	// Transaction fees and Gas explained: https://docs.avax.network/learn/platform-overview/transaction-fees
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   chainID,
-		Nonce:     nonce,
+		Nonce:     payment.Account.Nonce,
 		GasFeeCap: gasPrice,  //gasPrice,     // maximum price per unit of gas that the transaction is willing to pay
 		GasTipCap: gasTipCap, //tipCap,       // maximum amount above the baseFee of a block that the transaction is willing to pay to be included
 		Gas:       gasLimit,
@@ -182,6 +180,17 @@ func forward(client *ethclient.Client, payment *model.Payment, chainID *big.Int,
 		log.Fatal(err)
 	}
 
+	_, err = bind.WaitMined(context.Background(), client, signedTx)
+	if err != nil {
+		log.Fatalf("Can't wait until transaction is mined %v", err)
+	}
+
+	finalBalanceOnChaingateWallet, err := GetBalanceAt(client, common.HexToAddress(payment.Account.Address))
+	if err != nil {
+		log.Fatalf("Unable to get Balance of chaingate wallet %v", err)
+	}
+	payment.Account.Remainder = model.NewBigInt(finalBalanceOnChaingateWallet)
+
 	fmt.Printf("tx sent: %s\n", signedTx.Hash().Hex())
 	payment.Account.Used = false
 	payment.Account.Nonce = payment.Account.Nonce + 1
@@ -201,8 +210,4 @@ func GetPrivateKey(key string) (*ecdsa.PrivateKey, error) {
 		key = key[2:]
 	}
 	return crypto.HexToECDSA(key)
-}
-
-func GetPrivateKeyString(key *ecdsa.PrivateKey) string {
-	return hexutil.Encode(crypto.FromECDSA(key))
 }

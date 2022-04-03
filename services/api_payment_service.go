@@ -11,13 +11,9 @@ package services
 
 import (
 	"context"
-	"ethereum-service/internal"
-	"ethereum-service/internal/dbaccess"
-	"ethereum-service/model"
+	"ethereum-service/internal/controller"
 	"ethereum-service/openApi"
 	"fmt"
-	"github.com/google/uuid"
-	"math/big"
 	"net/http"
 )
 
@@ -34,39 +30,17 @@ func NewPaymentApiService() openApi.PaymentApiServicer {
 
 // CreatePayment - create new payment
 func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest openApi.PaymentRequest) (openApi.ImplResponse, error) {
-	acc, err := internal.GetAccount()
-
+	payment, finalPayAmount, err := controller.CreatePayment(paymentRequest.Mode, paymentRequest.PriceAmount, paymentRequest.PriceCurrency, paymentRequest.Wallet)
 	if err != nil {
-		return openApi.Response(http.StatusInternalServerError, acc), fmt.Errorf("unable to get free address")
+		return openApi.Response(http.StatusInternalServerError, nil), fmt.Errorf("unable to get free address")
 	}
 
-	payment := model.Payment{
-		Mode:          paymentRequest.Mode,
-		AccountID:     acc.ID,
-		PriceAmount:   paymentRequest.PriceAmount,
-		PriceCurrency: paymentRequest.PriceCurrency,
-		UserWallet:    paymentRequest.Wallet,
-	}
-
-	payment.ID = uuid.New()
-
-	val := internal.GetETHAmount(payment)
-	bigval := new(big.Float)
-	bigval.SetFloat64(*val)
-	balance := big.NewFloat(0).Mul(bigval, big.NewFloat(1000000000000000000))
-	final, accur := balance.Int(nil)
-	if accur == big.Below {
-		final.Add(final, big.NewInt(1))
-	}
-	_, err = dbaccess.CreatePayment(&payment, final)
-
-	finalPayAmount, _ := bigval.Float64()
 	paymentResponse := openApi.PaymentResponse{
 		//payment.ID.String(), //Todo change openapi
 		PriceAmount:   payment.PriceAmount,
 		PriceCurrency: payment.PriceCurrency,
 		PayAddress:    payment.Account.Address,
-		PayAmount:     finalPayAmount,
+		PayAmount:     *finalPayAmount,
 		PayCurrency:   "ETH",
 		PaymentStatus: payment.CurrentPaymentState.StatusName,
 	}

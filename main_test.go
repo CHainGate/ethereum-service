@@ -25,7 +25,7 @@ func TestMain(m *testing.M) {
 func TestTest(t *testing.T) {
 	value := getTest()
 	if !(value == "Test:") {
-		t.Fatalf(`%q, want match for %q, nil`, value, "Test:")
+		t.Fatalf(`%v, want match for %v, nil`, value, "Test:")
 	}
 }
 

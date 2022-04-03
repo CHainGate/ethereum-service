@@ -5,7 +5,7 @@ import (
 	"ethereum-service/database"
 	"ethereum-service/internal"
 	"ethereum-service/internal/config"
-	"ethereum-service/internal/dbaccess"
+	repository "ethereum-service/internal/repository"
 	"ethereum-service/model"
 	"ethereum-service/openApi"
 	"ethereum-service/services"
@@ -75,7 +75,7 @@ func createClient(connectionURI string) (*ethclient.Client, error) {
 }
 
 func checkAllAddresses() {
-	paymentIntents := dbaccess.GetAllPaymentIntents()
+	paymentIntents := repository.Payment.GetAllPaymentIntents()
 	for _, s := range paymentIntents {
 		switch s.Mode {
 		case "main":
