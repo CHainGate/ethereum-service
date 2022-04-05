@@ -91,14 +91,6 @@ func forward(client *ethclient.Client, payment *model.Payment, chainID *big.Int,
 		}
 	}
 
-	calculatedGasLimit, _ := client.EstimateGas(context.Background(), ethereum.CallMsg{
-		To:   &toAddress,
-		Data: []byte{0},
-	})
-	fmt.Printf("Calculated gas limit: %v\n", calculatedGasLimit)
-
-	gasLimit := uint64(21000)
-
 	chainGateEarnings := getChaingateEarnings(*payment, 1)
 	payment.Account.Remainder.Add(&payment.Account.Remainder.Int, chainGateEarnings)
 
@@ -111,13 +103,21 @@ func forward(client *ethclient.Client, payment *model.Payment, chainID *big.Int,
 	finalAmount := big.NewInt(0).Sub(payment.GetActiveAmount(), feesAndChangateEarnings)
 	fmt.Printf("finalAmount: %s\n", finalAmount.String())
 
+	calculatedGasLimit, _ := client.EstimateGas(context.Background(), ethereum.CallMsg{
+		GasFeeCap: gasPrice,  //gasPrice,     // maximum price per unit of gas that the transaction is willing to pay
+		GasTipCap: gasTipCap, //tipCap,       // maximum amount above the baseFee of a block that the transaction is willing to pay to be included
+		To:        &toAddress,
+		Value:     finalAmount,
+	})
+	fmt.Printf("Calculated gas limit: %v\n", calculatedGasLimit)
+
 	// Transaction fees and Gas explained: https://docs.avax.network/learn/platform-overview/transaction-fees
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   chainID,
 		Nonce:     payment.Account.Nonce,
 		GasFeeCap: gasPrice,  //gasPrice,     // maximum price per unit of gas that the transaction is willing to pay
 		GasTipCap: gasTipCap, //tipCap,       // maximum amount above the baseFee of a block that the transaction is willing to pay to be included
-		Gas:       gasLimit,
+		Gas:       calculatedGasLimit,
 		To:        &toAddress,
 		Value:     finalAmount,
 	})
