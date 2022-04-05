@@ -3,9 +3,9 @@ package internal
 import (
 	"context"
 	"crypto/ecdsa"
-	"errors"
 	repository "ethereum-service/internal/repository"
 	"ethereum-service/model"
+	"ethereum-service/utils"
 	"fmt"
 	"log"
 	"math/big"
@@ -16,62 +16,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"gorm.io/gorm"
-
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
-
-func GetAccount() (model.Account, error) {
-	return getFreeAccount()
-}
-
-func CreateAccount() *model.Account {
-	account := model.Account{}
-	privateKey, err := crypto.GenerateKey()
-	if err != nil {
-		log.Fatal(err)
-	}
-	account.PrivateKey = hexutil.Encode(crypto.FromECDSA(privateKey))
-
-	publicKey := privateKey.Public()
-	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-	if !ok {
-		log.Fatal("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
-	}
-
-	address := crypto.PubkeyToAddress(*publicKeyECDSA).Hex()
-	fmt.Println("New account with address created. Address: ", address)
-	account.Address = address
-	account.Remainder = model.NewBigInt(big.NewInt(0))
-
-	account.Used = true
-
-	return &account
-}
-
-func getFreeAccount() (model.Account, error) {
-	result, acc := repository.Account.GetFreeAccount()
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			acc = CreateAccount()
-			repository.Account.CreateAccount(acc)
-		} else {
-			return model.Account{}, result.Error
-		}
-	} else {
-		acc.Used = true
-		err := repository.Account.UpdateAccount(acc)
-		if err != nil {
-			return model.Account{}, result.Error
-		}
-	}
-	return *acc, nil
-}
-
-func getETHFromWEI(amount *big.Int) *big.Float {
-	return big.NewFloat(0).Quo(new(big.Float).SetInt(amount), big.NewFloat(1000000000000000000))
-}
 
 func CheckBalance(client *ethclient.Client, payment model.Payment) {
 	balance, err := GetUserBalanceAt(client, common.HexToAddress(payment.Account.Address), &payment.Account.Remainder.Int)
@@ -82,22 +28,25 @@ func CheckBalance(client *ethclient.Client, payment model.Payment) {
 	if payment.IsPaid(balance) {
 		log.Printf("PAYMENT REACHED!!!!")
 		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
-		repository.Payment.UpdatePaymentState(payment, "paid", balance)
+		state := repository.Payment.UpdatePaymentState(payment, "paid", balance)
+		SendState(payment.ID, state)
 		forward(client, &payment, nil, nil)
 		err = repository.Account.UpdateAccount(payment.Account)
 		if err != nil {
 			log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
 		}
-		repository.Payment.UpdatePaymentState(payment, "finished", balance)
+		state = repository.Payment.UpdatePaymentState(payment, "finished", balance)
+		SendState(payment.ID, state)
 	} else if payment.IsNewlyPartlyPaid(balance) {
-		repository.Payment.UpdatePaymentState(payment, "partially_paid", balance)
+		state := repository.Payment.UpdatePaymentState(payment, "partially_paid", balance)
+		SendState(payment.ID, state)
 		log.Printf("PAYMENT partly paid")
 		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
 	} else {
 		log.Printf("PAYMENT still not reached Address: %s", payment.Account.Address)
-		log.Printf("Current Payment: %s WEI, %s ETH", balance.String(), getETHFromWEI(balance).String())
-		log.Printf("Expected Payment: %s WEI, %s ETH", payment.GetActiveAmount().String(), getETHFromWEI(payment.GetActiveAmount()).String())
-		log.Printf("Please pay additional: %s WEI, %s ETH", big.NewInt(0).Sub(payment.GetActiveAmount(), balance).String(), big.NewFloat(0).Sub(getETHFromWEI(payment.GetActiveAmount()), getETHFromWEI(balance)).String())
+		log.Printf("Current Payment: %s WEI, %s ETH", balance.String(), utils.GetETHFromWEI(balance).String())
+		log.Printf("Expected Payment: %s WEI, %s ETH", payment.GetActiveAmount().String(), utils.GetETHFromWEI(payment.GetActiveAmount()).String())
+		log.Printf("Please pay additional: %s WEI, %s ETH", big.NewInt(0).Sub(payment.GetActiveAmount(), balance).String(), big.NewFloat(0).Sub(utils.GetETHFromWEI(payment.GetActiveAmount()), utils.GetETHFromWEI(balance)).String())
 	}
 }
 

@@ -8,26 +8,25 @@ import (
 	"gorm.io/gorm"
 )
 
-type IPaymentRepository interface {
-	UpdatePaymentState(payment model.Payment, state string, balance *big.Int)
-	CreatePayment(payment *model.Payment, finalPaymentAmount *big.Int) (*model.Payment, error)
-	GetAllPaymentIntents() []model.Payment
+type PaymentRepository struct {
+	DB *gorm.DB
 }
 
 func InitPayment(db *gorm.DB) {
-	Payment = &Repository{DB: db}
+	Payment = &PaymentRepository{DB: db}
 }
 
 var (
-	Payment IPaymentRepository
+	Payment model.IPaymentRepository
 )
 
-func (r *Repository) UpdatePaymentState(payment model.Payment, state string, balance *big.Int) {
-	payment.UpdatePaymentState(state, balance)
+func (r *PaymentRepository) UpdatePaymentState(payment model.Payment, state string, balance *big.Int) model.PaymentState {
+	createdState := payment.UpdatePaymentState(state, balance)
 	r.DB.Save(&payment)
+	return createdState
 }
 
-func (r *Repository) CreatePayment(payment *model.Payment, finalPaymentAmount *big.Int) (*model.Payment, error) {
+func (r *PaymentRepository) CreatePayment(payment *model.Payment, finalPaymentAmount *big.Int) (*model.Payment, error) {
 	payment.AddNewPaymentState("waiting", big.NewInt(0), finalPaymentAmount)
 	result := r.DB.Create(&payment)
 	if result.Error != nil {
@@ -37,7 +36,7 @@ func (r *Repository) CreatePayment(payment *model.Payment, finalPaymentAmount *b
 	return payment, nil
 }
 
-func (r *Repository) GetAllPaymentIntents() []model.Payment {
+func (r *PaymentRepository) GetAllPaymentIntents() []model.Payment {
 	var payments []model.Payment
 	r.DB.
 		Preload("Account").

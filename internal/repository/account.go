@@ -7,31 +7,25 @@ import (
 	"gorm.io/gorm"
 )
 
-type Repository struct {
+type AccountRepository struct {
 	DB *gorm.DB
 }
 
-type IAccountRepository interface {
-	GetFreeAccount() (*gorm.DB, *model.Account)
-	CreateAccount(acc *model.Account) *model.Account
-	UpdateAccount(acc *model.Account) error
-}
-
 func InitAccount(db *gorm.DB) {
-	Payment = &Repository{DB: db}
+	Account = &AccountRepository{DB: db}
 }
 
 var (
-	Account IAccountRepository
+	Account model.IAccountRepository
 )
 
-func (r *Repository) GetFreeAccount() (*gorm.DB, *model.Account) {
+func (r *AccountRepository) GetFreeAccount() (*gorm.DB, *model.Account) {
 	acc := model.Account{}
 	result := r.DB.Where("used = ?", "false").First(&acc)
 	return result, &acc
 }
 
-func (r *Repository) CreateAccount(acc *model.Account) *model.Account {
+func (r *AccountRepository) CreateAccount(acc *model.Account) *model.Account {
 	createAccountResult := r.DB.Create(&acc)
 	if createAccountResult.Error != nil {
 		log.Fatal(createAccountResult.Error)
@@ -39,7 +33,7 @@ func (r *Repository) CreateAccount(acc *model.Account) *model.Account {
 	return acc
 }
 
-func (r *Repository) UpdateAccount(acc *model.Account) error {
+func (r *AccountRepository) UpdateAccount(acc *model.Account) error {
 	result := r.DB.Save(&acc)
 	if result.Error != nil {
 		log.Fatal(result.Error)

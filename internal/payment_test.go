@@ -3,11 +3,8 @@ package internal
 import (
 	"context"
 	"crypto/ecdsa"
-	"ethereum-service/internal/repository"
 	"ethereum-service/model"
-	"github.com/DATA-DOG/go-sqlmock"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	"ethereum-service/utils"
 	"log"
 	"math/big"
 	"regexp"
@@ -33,40 +30,12 @@ var (
 	chainID  *big.Int
 )
 
-func NewMock() (sqlmock.Sqlmock, repository.IPaymentRepository) {
-	db, mock, err := sqlmock.New()
-	if err != nil {
-		log.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
-	}
-	dialector := postgres.New(postgres.Config{
-		Conn:       db,
-		DriverName: "postgres",
-	})
-
-	gormDb, err := gorm.Open(dialector, &gorm.Config{})
-	return mock, &repository.Repository{DB: gormDb}
-}
-
-func getPayment() repository.IPaymentRepository {
-	mock, repo := NewMock()
-	rows := sqlmock.NewRows([]string{"id", "user_wallet", "mode", "price_amount", "price_currency", "created_at"}).
-		AddRow("0eeaac28-832d-4bc1-85f9-57faeaf96682", "0xcDd9C81f1855Bfd6a309A395b53f273d539ad7aa", "Test", "100", "USD", "2022-03-18 15:56:52.534444 +00:00")
-	mock.ExpectQuery("CREATE").
-		WithArgs(1).
-		WillReturnRows(rows)
-	return repo
-}
-
-func TestCreatePayment(t *testing.T) {
-
-}
-
 func TestEthClientAddressInteraction(t *testing.T) {
 	client, err := ethclient.Dial("https://cloudflare-eth.com")
 	if err != nil {
 		log.Fatal(err)
 	}
-	acc := CreateAccount()
+	acc := model.CreateAccount()
 
 	address := common.HexToAddress(acc.Address)
 	balance, err := GetUserBalanceAt(client, address, &acc.Remainder.Int) // nil is latest block
@@ -80,7 +49,7 @@ func TestEthClientAddressInteraction(t *testing.T) {
 }
 
 func TestCreateAccount(t *testing.T) {
-	acc := CreateAccount()
+	acc := model.CreateAccount()
 
 	if acc.Address == "" {
 		t.Fatalf(`%v, want to be different than %v`, acc.Address, "")
@@ -113,7 +82,7 @@ func TestCreateAccount(t *testing.T) {
 }
 
 func customChainSetup(t *testing.T) (*model.Account, *ethclient.Client) {
-	genesisAcc := CreateAccount()
+	genesisAcc := model.CreateAccount()
 	pk, _ := GetPrivateKey(genesisAcc.PrivateKey)
 	auth, _ := NewAuth(pk, context.Background())
 	client := NewTestChain(t, auth)
@@ -145,14 +114,14 @@ func TestWalletReusage(t *testing.T) {
 
 func TestGetETHFromWEI(t *testing.T) {
 	shouldEthAmount := big.NewFloat(0.1)
-	ethAmount := getETHFromWEI(big.NewInt(100000000000000000))
+	ethAmount := utils.GetETHFromWEI(big.NewInt(100000000000000000))
 	if ethAmount.Cmp(shouldEthAmount) != 0 {
 		t.Fatalf(`The calculated ethAmount %v, should be: %v`, ethAmount, shouldEthAmount)
 	}
 }
 
 func setupFirstPayment(t *testing.T, client *ethclient.Client, genesisAcc *model.Account) (*model.Account, *big.Int) {
-	chaingateAcc := CreateAccount()
+	chaingateAcc := model.CreateAccount()
 	payAmount := big.NewInt(100000000000000)
 	txInitial := createInitialPayment(client, genesisAcc, payAmount, chaingateAcc.Address)
 
@@ -246,7 +215,7 @@ func createInitialPayment(client *ethclient.Client, genesisAcc *model.Account, p
 
 func createForwardWithTest(t *testing.T, client *ethclient.Client, chaingateAcc *model.Account, payAmount *big.Int, iteration uint64) {
 	shouldChainGateEarnings := big.NewInt(1000000000000)
-	merchantAcc := CreateAccount()
+	merchantAcc := model.CreateAccount()
 	p := createPayment(merchantAcc.Address, payAmount, chaingateAcc)
 
 	fromBalance, err := GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &p.Account.Remainder.Int)
