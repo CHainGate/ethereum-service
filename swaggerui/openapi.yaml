@@ -39,9 +39,10 @@ components:
       title: Payment Request
       type: object
       required:
-        - payment_id
         - price_currency
         - price_amount
+        - wallet
+        - mode
       properties:
         price_currency:
           type: string
@@ -58,9 +59,18 @@ components:
     PaymentResponse:
       title: Payment Response
       type: object
+      required:
+        - payment_id
+        - price_amount
+        - price_currency
+        - pay_address
+        - pay_amount
+        - pay_currency
+        - payment_status
       properties:
         payment_id:
-          type: integer
+          type: string
+          format: uuid
         price_amount:
          type: number
          format: double
