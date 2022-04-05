@@ -1,11 +1,19 @@
 package controller
 
 import (
+	"ethereum-service/internal/repository"
+	"ethereum-service/internal/testutils"
 	"testing"
 )
 
-func TestUpdatePaymentState(t *testing.T) {
-	/*	testutils.Setup()
-		mock, repo := NewAccountMock()
-		mock = testutils.SetupCreateAccount(mock)*/
+func TestGetAccount(t *testing.T) {
+	testutils.Setup()
+	mock, gormDb := testutils.NewMock()
+	repository.InitAccount(gormDb)
+	mock = testutils.SetupGetFreeAccount(mock)
+	mock = testutils.SetupUpdateAccount(mock)
+	GetAccount()
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
 }

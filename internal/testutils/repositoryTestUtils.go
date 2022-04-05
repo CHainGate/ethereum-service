@@ -82,7 +82,7 @@ func getAccountRow() *sqlmock.Rows {
 
 func getFreeAccountRow() *sqlmock.Rows {
 	return sqlmock.NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "private_key", "address", "nonce", "used", "remainder"}).
-		AddRow(ChaingateAcc.ID, time.Now(), time.Now(), time.Now(), ChaingateAcc.PrivateKey, ChaingateAcc.Address, ChaingateAcc.Nonce, false, 1000)
+		AddRow(ChaingateAcc.ID, time.Now(), time.Now(), time.Now(), ChaingateAcc.PrivateKey, ChaingateAcc.Address, ChaingateAcc.Nonce, false, ChaingateAcc.Remainder)
 }
 
 func getPaymentStatesRow() *sqlmock.Rows {
