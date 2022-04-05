@@ -266,6 +266,7 @@ func NewTestChain(t *testing.T, auth *bind.TransactOpts) *ethclient.Client {
 	address := auth.From
 	db := rawdb.NewMemoryDatabase()
 	genesis := &core.Genesis{
+		GasLimit:  9223372036854775807,
 		Config:    params.AllEthashProtocolChanges,
 		Alloc:     core.GenesisAlloc{address: {Balance: big.NewInt(0).Mul(big.NewInt(1000000000000000000), big.NewInt(100000000))}},
 		ExtraData: []byte("test genesis"),

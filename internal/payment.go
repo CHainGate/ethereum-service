@@ -7,7 +7,6 @@ import (
 	"ethereum-service/model"
 	"ethereum-service/utils"
 	"fmt"
-	"github.com/ethereum/go-ethereum"
 	"log"
 	"math/big"
 	"strings"
@@ -103,13 +102,7 @@ func forward(client *ethclient.Client, payment *model.Payment, chainID *big.Int,
 	finalAmount := big.NewInt(0).Sub(payment.GetActiveAmount(), feesAndChangateEarnings)
 	fmt.Printf("finalAmount: %s\n", finalAmount.String())
 
-	calculatedGasLimit, _ := client.EstimateGas(context.Background(), ethereum.CallMsg{
-		GasFeeCap: gasPrice,  //gasPrice,     // maximum price per unit of gas that the transaction is willing to pay
-		GasTipCap: gasTipCap, //tipCap,       // maximum amount above the baseFee of a block that the transaction is willing to pay to be included
-		To:        &toAddress,
-		Value:     finalAmount,
-	})
-	fmt.Printf("Calculated gas limit: %v\n", calculatedGasLimit)
+	gasLimit := uint64(21000)
 
 	// Transaction fees and Gas explained: https://docs.avax.network/learn/platform-overview/transaction-fees
 	tx := types.NewTx(&types.DynamicFeeTx{
@@ -117,7 +110,7 @@ func forward(client *ethclient.Client, payment *model.Payment, chainID *big.Int,
 		Nonce:     payment.Account.Nonce,
 		GasFeeCap: gasPrice,  //gasPrice,     // maximum price per unit of gas that the transaction is willing to pay
 		GasTipCap: gasTipCap, //tipCap,       // maximum amount above the baseFee of a block that the transaction is willing to pay to be included
-		Gas:       calculatedGasLimit,
+		Gas:       gasLimit,
 		To:        &toAddress,
 		Value:     finalAmount,
 	})
