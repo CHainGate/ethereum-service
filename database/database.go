@@ -2,7 +2,7 @@ package database
 
 import (
 	"ethereum-service/internal/config"
-	repository "ethereum-service/internal/repository"
+	"ethereum-service/internal/repository"
 	"ethereum-service/model"
 	"fmt"
 
