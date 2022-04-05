@@ -108,7 +108,6 @@ func TestWalletReusage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Can't wait until transaction is mined %v", err)
 	}
-
 	createForwardWithTest(t, client, chaingateAcc, payAmount, 2)
 }
 

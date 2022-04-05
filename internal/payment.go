@@ -7,6 +7,7 @@ import (
 	"ethereum-service/model"
 	"ethereum-service/utils"
 	"fmt"
+	"github.com/ethereum/go-ethereum"
 	"log"
 	"math/big"
 	"strings"
@@ -70,6 +71,7 @@ func GetBalanceAt(client *ethclient.Client, address common.Address) (*big.Int, e
 }
 
 func forward(client *ethclient.Client, payment *model.Payment, chainID *big.Int, gasPrice *big.Int) *types.Transaction {
+	toAddress := common.HexToAddress(payment.UserWallet)
 	gasTipCap, err := client.SuggestGasTipCap(context.Background())
 	if err != nil {
 		log.Fatal(err)
@@ -89,6 +91,12 @@ func forward(client *ethclient.Client, payment *model.Payment, chainID *big.Int,
 		}
 	}
 
+	calculatedGasLimit, _ := client.EstimateGas(context.Background(), ethereum.CallMsg{
+		To:   &toAddress,
+		Data: []byte{0},
+	})
+	fmt.Printf("Calculated gas limit: %v\n", calculatedGasLimit)
+
 	gasLimit := uint64(21000)
 
 	chainGateEarnings := getChaingateEarnings(*payment, 1)
@@ -103,7 +111,6 @@ func forward(client *ethclient.Client, payment *model.Payment, chainID *big.Int,
 	finalAmount := big.NewInt(0).Sub(payment.GetActiveAmount(), feesAndChangateEarnings)
 	fmt.Printf("finalAmount: %s\n", finalAmount.String())
 
-	toAddress := common.HexToAddress(payment.UserWallet)
 	// Transaction fees and Gas explained: https://docs.avax.network/learn/platform-overview/transaction-fees
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   chainID,
