@@ -20,6 +20,7 @@ func CreatePayment(mode string, priceAmount float64, priceCurrency string, walle
 	payment := model.Payment{
 		Mode:          mode,
 		AccountID:     acc.ID,
+		Account:       &acc,
 		PriceAmount:   priceAmount,
 		PriceCurrency: priceCurrency,
 		UserWallet:    wallet,
@@ -37,6 +38,5 @@ func CreatePayment(mode string, priceAmount float64, priceCurrency string, walle
 	}
 	_, err = repository.Payment.CreatePayment(&payment, final)
 
-	finalPayAmount, _ := bigval.Float64()
-	return &payment, &finalPayAmount, nil
+	return &payment, val, nil
 }

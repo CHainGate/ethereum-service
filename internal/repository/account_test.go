@@ -2,8 +2,9 @@ package repository
 
 import (
 	"ethereum-service/internal/testutils"
-	"github.com/DATA-DOG/go-sqlmock"
 	"testing"
+
+	"github.com/DATA-DOG/go-sqlmock"
 )
 
 func TestCreateAccount(t *testing.T) {

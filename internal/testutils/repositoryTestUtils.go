@@ -2,13 +2,14 @@ package testutils
 
 import (
 	"ethereum-service/model"
+	"log"
+	"time"
+
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"log"
-	"time"
 )
 
 var (

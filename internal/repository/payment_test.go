@@ -2,11 +2,12 @@ package repository
 
 import (
 	"ethereum-service/internal/testutils"
-	"github.com/CHainGate/backend/pkg/enum"
-	"github.com/DATA-DOG/go-sqlmock"
 	"math/big"
 	"os"
 	"testing"
+
+	"github.com/CHainGate/backend/pkg/enum"
+	"github.com/DATA-DOG/go-sqlmock"
 )
 
 func shutdown() {

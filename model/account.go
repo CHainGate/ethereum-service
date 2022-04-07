@@ -3,11 +3,12 @@ package model
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"log"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"gorm.io/gorm"
-	"log"
-	"math/big"
 )
 
 type Account struct {

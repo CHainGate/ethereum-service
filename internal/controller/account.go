@@ -4,6 +4,7 @@ import (
 	"errors"
 	"ethereum-service/internal/repository"
 	"ethereum-service/model"
+
 	"gorm.io/gorm"
 )
 
