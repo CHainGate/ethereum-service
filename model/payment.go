@@ -19,7 +19,7 @@ type Base struct {
 }
 
 type IPaymentRepository interface {
-	UpdatePaymentState(payment Payment, state string, balance *big.Int) PaymentState
+	UpdatePaymentState(payment *Payment, state string, balance *big.Int) PaymentState
 	CreatePayment(payment *Payment, finalPaymentAmount *big.Int) (*Payment, error)
 	GetAllPaymentIntents() []Payment
 }

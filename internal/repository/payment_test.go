@@ -14,7 +14,6 @@ func shutdown() {
 }
 
 func TestMain(m *testing.M) {
-	testutils.Setup()
 	code := m.Run()
 	shutdown()
 	os.Exit(code)
@@ -23,7 +22,8 @@ func TestMain(m *testing.M) {
 func TestCreatePayment(t *testing.T) {
 	mock, repo := NewPaymentMock()
 	mock = testutils.SetupCreatePayment(mock)
-	repo.CreatePayment(&testutils.EmptyPayment, big.NewInt(1000000))
+	ep := testutils.GetEmptyPayment()
+	repo.CreatePayment(&ep, big.NewInt(100000000000000))
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
@@ -41,7 +41,8 @@ func TestGetAllPaymentIntents(t *testing.T) {
 func TestUpdatePaymentState(t *testing.T) {
 	mock, repo := NewPaymentMock()
 	mock = testutils.SetupUpdatePaymentState(mock)
-	repo.UpdatePaymentState(testutils.WaitingPayment, enum.StatePartiallyPaid.String(), big.NewInt(10))
+	wp := testutils.GetWaitingPayment()
+	repo.UpdatePaymentState(&wp, enum.StatePartiallyPaid.String(), big.NewInt(10))
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}

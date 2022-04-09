@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"crypto/ecdsa"
+	"ethereum-service/internal/config"
 	repository "ethereum-service/internal/repository"
 	"ethereum-service/model"
 	"ethereum-service/utils"
@@ -19,7 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-func CheckBalance(client *ethclient.Client, payment model.Payment) {
+func CheckBalance(client *ethclient.Client, payment *model.Payment) {
 	balance, err := GetUserBalanceAt(client, common.HexToAddress(payment.Account.Address), &payment.Account.Remainder.Int)
 	if err != nil {
 		log.Fatal(err)
@@ -30,7 +31,7 @@ func CheckBalance(client *ethclient.Client, payment model.Payment) {
 		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
 		state := repository.Payment.UpdatePaymentState(payment, "paid", balance)
 		SendState(payment.ID, state)
-		forward(client, &payment, nil, nil)
+		forward(client, payment)
 		err = repository.Account.UpdateAccount(payment.Account)
 		if err != nil {
 			log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
@@ -69,25 +70,31 @@ func GetBalanceAt(client *ethclient.Client, address common.Address) (*big.Int, e
 	return client.BalanceAt(context.Background(), address, nil)
 }
 
-func forward(client *ethclient.Client, payment *model.Payment, chainID *big.Int, gasPrice *big.Int) *types.Transaction {
+func forward(client *ethclient.Client, payment *model.Payment) *types.Transaction {
 	toAddress := common.HexToAddress(payment.UserWallet)
 	gasTipCap, err := client.SuggestGasTipCap(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if gasPrice == nil {
+	var gasPrice *big.Int
+	if config.Chain == nil {
 		gasPrice, err = client.SuggestGasPrice(context.Background())
 		if err != nil {
 			log.Fatal(err)
 		}
+	} else {
+		gasPrice = config.Chain.GasPrice
 	}
 
-	if chainID == nil {
+	var chainID *big.Int
+	if config.Chain == nil {
 		chainID, err = client.NetworkID(context.Background())
 		if err != nil {
 			log.Fatal(err)
 		}
+	} else {
+		chainID = config.Chain.ChainId
 	}
 
 	chainGateEarnings := getChaingateEarnings(*payment, 1)

@@ -10,7 +10,8 @@ import (
 func TestCreateAccount(t *testing.T) {
 	mock, repo := NewAccountMock()
 	mock = testutils.SetupCreateAccount(mock)
-	repo.CreateAccount(testutils.ChaingateAcc)
+	ca := testutils.GetChaingateAcc()
+	repo.CreateAccount(&ca)
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
@@ -19,7 +20,8 @@ func TestCreateAccount(t *testing.T) {
 func TestUpdateAccount(t *testing.T) {
 	mock, repo := NewAccountMock()
 	mock = testutils.SetupUpdateAccount(mock)
-	repo.UpdateAccount(testutils.ChaingateAcc)
+	ca := testutils.GetChaingateAcc()
+	repo.UpdateAccount(&ca)
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}

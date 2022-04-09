@@ -79,9 +79,9 @@ func checkAllAddresses() {
 	for _, s := range paymentIntents {
 		switch s.Mode {
 		case "main":
-			internal.CheckBalance(clientMain, s)
+			internal.CheckBalance(clientMain, &s)
 		case "test":
-			internal.CheckBalance(clientTest, s)
+			internal.CheckBalance(clientTest, &s)
 		default:
 			log.Fatal("Mode not supported!")
 		}

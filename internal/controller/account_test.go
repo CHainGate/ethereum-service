@@ -7,7 +7,6 @@ import (
 )
 
 func TestGetAccount(t *testing.T) {
-	testutils.Setup()
 	mock, gormDb := testutils.NewMock()
 	repository.InitAccount(gormDb)
 	mock = testutils.SetupGetFreeAccount(mock)
