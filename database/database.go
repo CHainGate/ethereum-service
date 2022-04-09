@@ -2,6 +2,7 @@ package database
 
 import (
 	"ethereum-service/internal/config"
+	"ethereum-service/internal/repository"
 	"ethereum-service/model"
 	"fmt"
 
@@ -31,6 +32,9 @@ func DbInit() {
 	err = connection.AutoMigrate(&model.Payment{})
 	err = connection.AutoMigrate(&model.PaymentState{})
 	err = connection.AutoMigrate(&model.Account{})
+
+	repository.InitPayment(DB)
+	repository.InitAccount(DB)
 
 	if err != nil {
 		return

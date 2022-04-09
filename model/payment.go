@@ -1,12 +1,9 @@
 package model
 
 import (
-	"context"
 	"database/sql/driver"
-	"ethereum-service/backendClientApi"
 	"fmt"
 	"math/big"
-	"os"
 	"reflect"
 	"time"
 
@@ -21,9 +18,15 @@ type Base struct {
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
+type IPaymentRepository interface {
+	UpdatePaymentState(payment Payment, state string, balance *big.Int) PaymentState
+	CreatePayment(payment *Payment, finalPaymentAmount *big.Int) (*Payment, error)
+	GetAllPaymentIntents() []Payment
+}
+
 type Payment struct {
 	Base
-	Account    Account
+	Account    *Account
 	AccountID  uuid.UUID `gorm:"type:uuid"`
 	UserWallet string
 	Mode       string
@@ -62,7 +65,6 @@ func (p *Payment) UpdatePaymentState(newState string, balance *big.Int) PaymentS
 	p.CurrentPaymentState = state
 	p.PaymentStates = append(p.PaymentStates, state)
 
-	sendState(p.ID, state)
 	return state
 }
 
@@ -72,26 +74,6 @@ func (p *Payment) IsNewlyPartlyPaid(balance *big.Int) bool {
 
 func (p *Payment) IsPaid(balance *big.Int) bool {
 	return balance.Cmp(p.GetActiveAmount()) >= 0
-}
-
-func sendState(paymentId uuid.UUID, state PaymentState) {
-	payAmount, payAmountAccuracy := new(big.Float).SetInt(&state.PayAmount.Int).Float64()
-	amountReceived, amountReceivedAccuracy := new(big.Float).SetInt(&state.AmountReceived.Int).Float64()
-	if payAmountAccuracy == big.Exact && amountReceivedAccuracy == big.Exact {
-		paymentUpdateDto := *backendClientApi.NewPaymentUpdateDto(paymentId.String(), payAmount, "ETH", *backendClientApi.NewNullableFloat64(&amountReceived), state.StatusName) // PaymentUpdateDto |  (optional)
-
-		configuration := backendClientApi.NewConfiguration()
-		apiClient := backendClientApi.NewAPIClient(configuration)
-		resp, err := apiClient.PaymentUpdateApi.UpdatePayment(context.Background()).PaymentUpdateDto(paymentUpdateDto).Execute()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error when calling `PaymentUpdateApi.UpdatePayment``: %v\n", err)
-			fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", resp)
-		} else {
-			fmt.Printf("Updated sended: Payment %s with updated to: %s", paymentId.String(), state.StatusName)
-		}
-	} else {
-		// TODO handle too big or too small numbers
-	}
 }
 
 /*
