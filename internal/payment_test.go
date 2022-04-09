@@ -7,7 +7,6 @@ import (
 	"ethereum-service/internal/repository"
 	"ethereum-service/internal/testutils"
 	"ethereum-service/model"
-	"ethereum-service/utils"
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -112,14 +111,6 @@ func TestWalletReusage(t *testing.T) {
 	createForward(t, client, chaingateAcc, payAmount, 2)
 }
 
-func TestGetETHFromWEI(t *testing.T) {
-	shouldEthAmount := big.NewFloat(0.1)
-	ethAmount := utils.GetETHFromWEI(big.NewInt(100000000000000000))
-	if ethAmount.Cmp(shouldEthAmount) != 0 {
-		t.Fatalf(`The calculated ethAmount %v, should be: %v`, ethAmount, shouldEthAmount)
-	}
-}
-
 func setupFirstPayment(t *testing.T, client *ethclient.Client, genesisAcc *model.Account) (*model.Account, *big.Int) {
 	chaingateAcc := model.CreateAccount()
 	payAmount := big.NewInt(100000000000000)
@@ -208,7 +199,7 @@ func createForward(t *testing.T, client *ethclient.Client, chaingateAcc *model.A
 		t.Fatalf(`Balance on generated wallet %v, should be %v`, fromBalance, payAmount)
 	}
 
-	forward(client, &p)
+	tx := forward(client, &p)
 
 	if p.Account.Used == true {
 		t.Fatalf(`The used wallet is: %v, should be %v`, p.Account.Used, false)
@@ -220,6 +211,11 @@ func createForward(t *testing.T, client *ethclient.Client, chaingateAcc *model.A
 
 	if fromBalance.Cmp(payAmount) != 0 {
 		t.Fatalf(`Balance on generated wallet is: %v, should be %v`, fromBalance, payAmount)
+	}
+
+	_, err = bind.WaitMined(context.Background(), client, tx)
+	if err != nil {
+		log.Fatalf("Can't wait until transaction is mined %v", err)
 	}
 
 	toBalance, err := GetUserBalanceAt(client, common.HexToAddress(merchantAcc.Address), &merchantAcc.Remainder.Int)
@@ -360,10 +356,16 @@ func TestCheckBalancePartiallyPaid(t *testing.T) {
 	if p.CurrentPaymentState.StatusName != enum.StatePartiallyPaid.String() {
 		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.StatePartiallyPaid.String())
 	}
+	if err = mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
 }
 
 func TestCheckBalancePaid(t *testing.T) {
 	defer gock.Off() // Flush pending mocks after test execution
+	gock.New("http://localhost:8000").
+		Put("/api/internal/payment/webhook").
+		Reply(200)
 	gock.New("http://localhost:8000").
 		Put("/api/internal/payment/webhook").
 		Reply(200)
@@ -380,7 +382,10 @@ func TestCheckBalancePaid(t *testing.T) {
 		t.Fatalf("Can't wait until transaction is mined %v", err)
 	}
 	CheckBalance(client, &p)
-	if p.CurrentPaymentState.StatusName != enum.StatePaid.String() {
-		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.StatePaid.String())
+	if p.CurrentPaymentState.StatusName != enum.StateFinished.String() {
+		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.StateFinished.String())
+	}
+	if err = mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
 }

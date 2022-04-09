@@ -165,6 +165,28 @@ func SetupCreatePayment(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 	return mock
 }
 
+func SetupCreatePaymentWithoutIdCheck(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
+	ep := GetEmptyPayment()
+	wp := GetWaitingPayment()
+	ca := GetChaingateAcc()
+	paymentRows := getPaymentRow(ep)
+	accRows := getAccountRow(ca)
+	stateRows := getPaymentStatesRow(ca, wp)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("INSERT INTO \"accounts\"").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.PrivateKey, ca.Address, ca.Nonce, true, ca.Remainder, ca.ID).
+		WillReturnRows(accRows)
+	mock.ExpectQuery("INSERT INTO \"payment_states\"").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, wp.CurrentPaymentState.PayAmount, "0", enum.StateWaiting.String(), sqlmock.AnyArg()).
+		WillReturnRows(stateRows)
+	mock.ExpectQuery("INSERT INTO \"payments\"").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, sqlmock.AnyArg(), ep.Mode, ep.PriceAmount, ep.PriceCurrency, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnRows(paymentRows)
+	mock.ExpectCommit()
+	return mock
+}
+
 func SetupAllPaymentIntents(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 	wp := GetWaitingPayment()
 	ma := GetMerchantAcc()
@@ -261,9 +283,12 @@ func SetupUpdateAccount(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 
 func SetupUpdateAccountFree(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 	ca := GetChaingateAcc()
+	ca.Nonce = ca.Nonce + 1
+	ca.Used = false
+	ca.Remainder = model.NewBigIntFromInt(1000000000000)
 	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE \"accounts\"").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.PrivateKey, ca.Address, ca.Nonce, true, ca.Remainder, ca.ID).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.PrivateKey, ca.Address, ca.Nonce, ca.Used, ca.Remainder, ca.ID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 	return mock
