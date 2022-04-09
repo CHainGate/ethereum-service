@@ -20,7 +20,7 @@ var (
 	Payment model.IPaymentRepository
 )
 
-func (r *PaymentRepository) UpdatePaymentState(payment model.Payment, state string, balance *big.Int) model.PaymentState {
+func (r *PaymentRepository) UpdatePaymentState(payment *model.Payment, state string, balance *big.Int) model.PaymentState {
 	createdState := payment.UpdatePaymentState(state, balance)
 	r.DB.Save(&payment)
 	return createdState

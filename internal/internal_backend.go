@@ -24,7 +24,7 @@ func SendState(paymentId uuid.UUID, state model.PaymentState) {
 			fmt.Fprintf(os.Stderr, "Error when calling `PaymentUpdateApi.UpdatePayment``: %v\n", err)
 			fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", resp)
 		} else {
-			fmt.Printf("Updated sended: Payment %s with updated to: %s", paymentId.String(), state.StatusName)
+			fmt.Printf("Update sent: Payment %s updated to: %s\n", paymentId.String(), state.StatusName)
 		}
 	} else {
 		// TODO handle too big or too small numbers

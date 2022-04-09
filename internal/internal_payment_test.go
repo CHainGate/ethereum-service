@@ -3,8 +3,11 @@ package internal
 import (
 	"context"
 	"crypto/ecdsa"
+	"ethereum-service/internal/config"
+	"ethereum-service/internal/repository"
+	"ethereum-service/internal/testutils"
 	"ethereum-service/model"
-	"ethereum-service/utils"
+	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -19,15 +22,11 @@ import (
 	geth "github.com/ethereum/go-ethereum/mobile"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
+	"gopkg.in/h2non/gock.v1"
 	"log"
 	"math/big"
 	"regexp"
 	"testing"
-)
-
-var (
-	gasPrice *big.Int
-	chainID  *big.Int
 )
 
 func TestEthClientAddressInteraction(t *testing.T) {
@@ -86,37 +85,30 @@ func customChainSetup(t *testing.T) (*model.Account, *ethclient.Client) {
 	pk, _ := GetPrivateKey(genesisAcc.PrivateKey)
 	auth, _ := NewAuth(pk, context.Background())
 	client := NewTestChain(t, auth)
-	gasPrice = big.NewInt(params.InitialBaseFee)
-	chainID = big.NewInt(1337)
-
+	config.Chain = &config.ChainConfig{
+		ChainId:  big.NewInt(1337),
+		GasPrice: big.NewInt(params.InitialBaseFee),
+	}
 	return genesisAcc, client
 }
 
 func TestSingleForward(t *testing.T) {
 	genesisAcc, client := customChainSetup(t)
 	chaingateAcc, payAmount := setupFirstPayment(t, client, genesisAcc)
-	createForwardWithTest(t, client, chaingateAcc, payAmount, 1)
+	createForward(t, client, chaingateAcc, payAmount, 1)
 }
 
 func TestWalletReusage(t *testing.T) {
 	genesisAcc, client := customChainSetup(t)
 	chaingateAcc, payAmount := setupFirstPayment(t, client, genesisAcc)
-	createForwardWithTest(t, client, chaingateAcc, payAmount, 1)
+	createForward(t, client, chaingateAcc, payAmount, 1)
 
 	txInitial := createInitialPayment(client, genesisAcc, payAmount, chaingateAcc.Address)
 	_, err := bind.WaitMined(context.Background(), client, txInitial)
 	if err != nil {
 		t.Fatalf("Can't wait until transaction is mined %v", err)
 	}
-	createForwardWithTest(t, client, chaingateAcc, payAmount, 2)
-}
-
-func TestGetETHFromWEI(t *testing.T) {
-	shouldEthAmount := big.NewFloat(0.1)
-	ethAmount := utils.GetETHFromWEI(big.NewInt(100000000000000000))
-	if ethAmount.Cmp(shouldEthAmount) != 0 {
-		t.Fatalf(`The calculated ethAmount %v, should be: %v`, ethAmount, shouldEthAmount)
-	}
+	createForward(t, client, chaingateAcc, payAmount, 2)
 }
 
 func setupFirstPayment(t *testing.T, client *ethclient.Client, genesisAcc *model.Account) (*model.Account, *big.Int) {
@@ -132,52 +124,34 @@ func setupFirstPayment(t *testing.T, client *ethclient.Client, genesisAcc *model
 	return chaingateAcc, payAmount
 }
 
-func createPayment(targetAddress string, payAmount *big.Int, acc *model.Account) model.Payment {
-	initialBalance := big.NewInt(100000000000000)
-	p := model.Payment{
-		Mode:          "Main",
-		Account:       acc,
-		PriceAmount:   100,
-		PriceCurrency: "USD",
-		UserWallet:    targetAddress,
-	}
-
-	currentPaymentState := model.PaymentState{
-		StatusName:     "waiting",
-		AccountID:      p.AccountID,
-		AmountReceived: model.NewBigInt(initialBalance),
-		PayAmount:      model.NewBigInt(payAmount),
-		PaymentID:      p.ID,
-	}
-	p.CurrentPaymentState = currentPaymentState
-	p.PaymentStates = append(p.PaymentStates, currentPaymentState)
-
-	return p
-}
-
 func createInitialPayment(client *ethclient.Client, genesisAcc *model.Account, payAmount *big.Int, targetAddress string) *types.Transaction {
 	nonce, err := client.PendingNonceAt(context.Background(), common.HexToAddress(genesisAcc.Address))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if gasPrice == nil {
+	var gasPrice *big.Int
+	if config.Chain == nil {
 		gasPrice, err = client.SuggestGasPrice(context.Background())
 		if err != nil {
 			log.Fatal(err)
 		}
+	} else {
+		gasPrice = config.Chain.GasPrice
 	}
-
 	gasTipCap, err := client.SuggestGasTipCap(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if chainID == nil {
+	var chainID *big.Int
+	if config.Chain == nil {
 		chainID, err = client.NetworkID(context.Background())
 		if err != nil {
 			log.Fatal(err)
 		}
+	} else {
+		chainID = config.Chain.ChainId
 	}
 
 	gasLimit := uint64(21000)
@@ -212,17 +186,20 @@ func createInitialPayment(client *ethclient.Client, genesisAcc *model.Account, p
 	return signedTx
 }
 
-func createForwardWithTest(t *testing.T, client *ethclient.Client, chaingateAcc *model.Account, payAmount *big.Int, iteration uint64) {
+func createForward(t *testing.T, client *ethclient.Client, chaingateAcc *model.Account, payAmount *big.Int, iteration uint64) model.Payment {
 	shouldChainGateEarnings := big.NewInt(1000000000000)
 	merchantAcc := model.CreateAccount()
-	p := createPayment(merchantAcc.Address, payAmount, chaingateAcc)
+	p := testutils.GetPaidPayment()
+	p.UserWallet = merchantAcc.Address
+	p.CurrentPaymentState.PayAmount = model.NewBigInt(payAmount)
+	p.Account = chaingateAcc
 
 	fromBalance, err := GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &p.Account.Remainder.Int)
 	if fromBalance.Cmp(payAmount) != 0 {
 		t.Fatalf(`Balance on generated wallet %v, should be %v`, fromBalance, payAmount)
 	}
 
-	forward(client, &p, chainID, gasPrice)
+	tx := forward(client, &p)
 
 	if p.Account.Used == true {
 		t.Fatalf(`The used wallet is: %v, should be %v`, p.Account.Used, false)
@@ -236,6 +213,11 @@ func createForwardWithTest(t *testing.T, client *ethclient.Client, chaingateAcc 
 		t.Fatalf(`Balance on generated wallet is: %v, should be %v`, fromBalance, payAmount)
 	}
 
+	_, err = bind.WaitMined(context.Background(), client, tx)
+	if err != nil {
+		log.Fatalf("Can't wait until transaction is mined %v", err)
+	}
+
 	toBalance, err := GetUserBalanceAt(client, common.HexToAddress(merchantAcc.Address), &merchantAcc.Remainder.Int)
 	fromUserBalance, err := GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &chaingateAcc.Remainder.Int)
 	fromRealBalance, err := GetBalanceAt(client, common.HexToAddress(chaingateAcc.Address))
@@ -243,7 +225,7 @@ func createForwardWithTest(t *testing.T, client *ethclient.Client, chaingateAcc 
 		t.Fatalf("Can't get balance %v", err)
 	}
 
-	fees := big.NewInt(0).Mul(big.NewInt(21000), gasPrice)
+	fees := big.NewInt(0).Mul(big.NewInt(21000), config.Chain.GasPrice)
 	chainGateEarnings := getChaingateEarnings(p, 1)
 	if chainGateEarnings.Cmp(shouldChainGateEarnings) != 0 {
 		t.Fatalf(`CHainGate earnings is %v, should be %v`, chainGateEarnings, shouldChainGateEarnings)
@@ -259,6 +241,8 @@ func createForwardWithTest(t *testing.T, client *ethclient.Client, chaingateAcc 
 	if fromRealBalance.Cmp(&p.Account.Remainder.Int) != 0 {
 		t.Fatalf(`%v, should be %v`, fromRealBalance, p.Account.Remainder)
 	}
+
+	return p
 }
 
 func NewTestChain(t *testing.T, auth *bind.TransactOpts) *ethclient.Client {
@@ -315,7 +299,7 @@ func generateTestChain(testAddr common.Address, testBalance *big.Int) (*core.Gen
 	db := rawdb.NewMemoryDatabase()
 	config := params.AllEthashProtocolChanges
 	genesis := &core.Genesis{
-		GasLimit:   1000000,
+		GasLimit:   9223372036854775807,
 		Difficulty: big.NewInt(1),
 		Config:     config,
 		Alloc:      core.GenesisAlloc{testAddr: {Balance: testBalance}},
@@ -344,10 +328,64 @@ func NewAuth(key *ecdsa.PrivateKey, ctx context.Context) (*bind.TransactOpts, er
 	return auth, nil
 }
 
-func TestCheckBalance(t *testing.T) {
+func TestCheckBalanceWaiting(t *testing.T) {
 	_, client := customChainSetup(t)
-	chaingateAcc := model.CreateAccount()
-	merchantAcc := model.CreateAccount()
-	p := createPayment(merchantAcc.Address, big.NewInt(100000), chaingateAcc)
-	CheckBalance(client, p)
+	p := testutils.GetWaitingPayment()
+	CheckBalance(client, &p)
+	if p.CurrentPaymentState.StatusName != enum.StateWaiting.String() {
+		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.StateWaiting.String())
+	}
+}
+
+func TestCheckBalancePartiallyPaid(t *testing.T) {
+	defer gock.Off() // Flush pending mocks after test execution
+	gock.New("http://localhost:8000").
+		Put("/api/internal/payment/webhook").
+		Reply(200)
+	mock, gormDb := testutils.NewMock()
+	repository.InitPayment(gormDb)
+	mock = testutils.SetupUpdatePaymentState(mock)
+	genesisAcc, client := customChainSetup(t)
+	p := testutils.GetWaitingPayment()
+	txInitial := createInitialPayment(client, genesisAcc, big.NewInt(10), p.Account.Address)
+	_, err := bind.WaitMined(context.Background(), client, txInitial)
+	if err != nil {
+		t.Fatalf("Can't wait until transaction is mined %v", err)
+	}
+	CheckBalance(client, &p)
+	if p.CurrentPaymentState.StatusName != enum.StatePartiallyPaid.String() {
+		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.StatePartiallyPaid.String())
+	}
+	if err = mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestCheckBalancePaid(t *testing.T) {
+	defer gock.Off() // Flush pending mocks after test execution
+	gock.New("http://localhost:8000").
+		Put("/api/internal/payment/webhook").
+		Reply(200)
+	gock.New("http://localhost:8000").
+		Put("/api/internal/payment/webhook").
+		Reply(200)
+	mock, gormDb := testutils.NewMock()
+	repository.InitPayment(gormDb)
+	repository.InitAccount(gormDb)
+	mock = testutils.SetupUpdatePaymentStateToPaid(mock)
+	mock = testutils.SetupUpdateAccountFree(mock)
+	genesisAcc, client := customChainSetup(t)
+	p := testutils.GetWaitingPayment()
+	txInitial := createInitialPayment(client, genesisAcc, &p.CurrentPaymentState.PayAmount.Int, p.Account.Address)
+	_, err := bind.WaitMined(context.Background(), client, txInitial)
+	if err != nil {
+		t.Fatalf("Can't wait until transaction is mined %v", err)
+	}
+	CheckBalance(client, &p)
+	if p.CurrentPaymentState.StatusName != enum.StateFinished.String() {
+		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.StateFinished.String())
+	}
+	if err = mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
 }
