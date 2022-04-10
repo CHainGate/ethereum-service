@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"ethereum-service/internal/config"
 	"ethereum-service/internal/repository"
 	"ethereum-service/internal/testutils"
 	"ethereum-service/model"
@@ -11,6 +12,7 @@ import (
 )
 
 func TestCreatePayment(t *testing.T) {
+	config.ReadOpts()
 	expectedPayAmountFloat := 0.0001
 	expectedPayAmountBigInt := utils.GetWEIFromETH(&expectedPayAmountFloat)
 	mock, gormDb := testutils.NewMock()

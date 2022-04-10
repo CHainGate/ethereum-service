@@ -338,6 +338,7 @@ func TestCheckBalanceWaiting(t *testing.T) {
 }
 
 func TestCheckBalancePartiallyPaid(t *testing.T) {
+	config.ReadOpts()
 	defer gock.Off() // Flush pending mocks after test execution
 	gock.New("http://localhost:8000").
 		Put("/api/internal/payment/webhook").
