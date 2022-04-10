@@ -15,7 +15,8 @@ func GetETHAmount(payment model.Payment) *float64 {
 	dstCurrency := "ETH" // string |
 	mode := "main"
 
-	configuration := NewConfiguration()
+	configuration := proxyClientApi.NewConfiguration()
+	configuration.Servers[0].URL = config.Opts.ProxyBaseUrl
 	apiClient := proxyClientApi.NewAPIClient(configuration)
 	resp, r, err := apiClient.ConversionApi.GetPriceConversion(context.Background()).Amount(amount).SrcCurrency(srcCurrency).DstCurrency(dstCurrency).Mode(mode).Execute()
 	if err != nil {
@@ -24,20 +25,4 @@ func GetETHAmount(payment model.Payment) *float64 {
 	}
 	fmt.Fprintf(os.Stdout, "Response from `ConversionApi.GetPriceConversion`: %v\n", resp)
 	return resp.Price
-}
-
-func NewConfiguration() *proxyClientApi.Configuration {
-	cfg := &proxyClientApi.Configuration{
-		DefaultHeader: make(map[string]string),
-		UserAgent:     "OpenAPI-Generator/1.0.0/go",
-		Debug:         true,
-		Servers: proxyClientApi.ServerConfigurations{
-			{
-				URL:         config.Opts.ProxyBaseUrl,
-				Description: "No description provided",
-			},
-		},
-		OperationServers: map[string]proxyClientApi.ServerConfigurations{},
-	}
-	return cfg
 }

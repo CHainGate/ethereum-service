@@ -9,10 +9,11 @@ import (
 )
 
 type OptsType struct {
-	Main         string
-	Test         string
-	ProxyBaseUrl string
-	DBOpts       DBOpts
+	Main           string
+	Test           string
+	ProxyBaseUrl   string
+	BackendBaseUrl string
+	DBOpts         DBOpts
 }
 
 type DBOpts struct {
@@ -54,6 +55,7 @@ func ReadOpts() {
 	flag.StringVar(&o.DBOpts.DbName, "DB_NAME", lookupEnv("DB_NAME"), "Database Name")
 	flag.StringVar(&o.DBOpts.DbPort, "DB_PORT", lookupEnv("DB_PORT"), "Database Port")
 	flag.StringVar(&o.ProxyBaseUrl, "PROXY_BASE_URL", lookupEnv("PROXY_BASE_URL", "http://localhost:8001/api"), "Proxy base url")
+	flag.StringVar(&o.BackendBaseUrl, "BACKEND_BASE_URL", lookupEnv("BACKEND_BASE_URL", "http://localhost:8000/api/internal"), "Backend base url")
 
 	Opts = o
 }
