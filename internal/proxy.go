@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"ethereum-service/internal/config"
 	"ethereum-service/model"
 	"ethereum-service/proxyClientApi"
 	"fmt"
@@ -15,6 +16,7 @@ func GetETHAmount(payment model.Payment) *float64 {
 	mode := "main"
 
 	configuration := proxyClientApi.NewConfiguration()
+	configuration.Servers[0].URL = config.Opts.ProxyBaseUrl
 	apiClient := proxyClientApi.NewAPIClient(configuration)
 	resp, r, err := apiClient.ConversionApi.GetPriceConversion(context.Background()).Amount(amount).SrcCurrency(srcCurrency).DstCurrency(dstCurrency).Mode(mode).Execute()
 	if err != nil {

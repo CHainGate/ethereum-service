@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"ethereum-service/backendClientApi"
+	"ethereum-service/internal/config"
 	"ethereum-service/model"
 	"fmt"
 	"math/big"
@@ -18,6 +19,7 @@ func SendState(paymentId uuid.UUID, state model.PaymentState) {
 		paymentUpdateDto := *backendClientApi.NewPaymentUpdateDto(paymentId.String(), payAmount, "ETH", *backendClientApi.NewNullableFloat64(&amountReceived), state.StatusName) // PaymentUpdateDto |  (optional)
 
 		configuration := backendClientApi.NewConfiguration()
+		configuration.Servers[0].URL = config.Opts.BackendBaseUrl
 		apiClient := backendClientApi.NewAPIClient(configuration)
 		resp, err := apiClient.PaymentUpdateApi.UpdatePayment(context.Background()).PaymentUpdateDto(paymentUpdateDto).Execute()
 		if err != nil {
