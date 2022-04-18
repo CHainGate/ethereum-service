@@ -21,3 +21,12 @@ func TestGetWEIFromETH(t *testing.T) {
 		t.Fatalf(`The calculated ethAmount %v, should be: %v`, ethAmount, shouldWEIAmount)
 	}
 }
+
+func TestGetWEIFromETHRoundUp(t *testing.T) {
+	shouldWEIAmount := big.NewInt(1)
+	ethAmount := 0.00000000000000000000000001
+	weiAmount := GetWEIFromETH(&ethAmount)
+	if weiAmount.Cmp(shouldWEIAmount) != 0 {
+		t.Fatalf(`The calculated ethAmount %v, should be: %v`, ethAmount, shouldWEIAmount)
+	}
+}

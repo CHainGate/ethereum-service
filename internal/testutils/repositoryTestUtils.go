@@ -3,6 +3,7 @@ package testutils
 import (
 	"ethereum-service/model"
 	"log"
+	"math/big"
 	"time"
 
 	"github.com/CHainGate/backend/pkg/enum"
@@ -33,15 +34,19 @@ func createEmptyPayment(acc model.Account, mAcc model.Account) *model.Payment {
 	}
 }
 
-func addWaitingPaymentState(payment model.Payment) *model.Payment {
-	state := model.PaymentState{
+func CreatePaymentState(paymentID uuid.UUID, accountID uuid.UUID, state enum.State, amountReceived *big.Int) model.PaymentState {
+	return model.PaymentState{
 		Base:           model.Base{ID: uuid.New()},
-		StatusName:     "waiting",
-		AccountID:      payment.AccountID,
-		AmountReceived: model.NewBigIntFromInt(0),
+		StatusName:     state.String(),
+		AccountID:      paymentID,
+		AmountReceived: model.NewBigInt(amountReceived),
 		PayAmount:      model.NewBigIntFromInt(100000000000000),
-		PaymentID:      payment.ID,
+		PaymentID:      accountID,
 	}
+}
+
+func addWaitingPaymentState(payment model.Payment) *model.Payment {
+	state := CreatePaymentState(payment.ID, payment.AccountID, enum.StateWaiting, big.NewInt(0))
 	payment.CurrentPaymentStateId = &state.ID
 	payment.CurrentPaymentState = state
 	payment.PaymentStates = append(payment.PaymentStates, state)
@@ -49,14 +54,7 @@ func addWaitingPaymentState(payment model.Payment) *model.Payment {
 }
 
 func addPartiallyPaidPaymentState(payment model.Payment) *model.Payment {
-	state := model.PaymentState{
-		Base:           model.Base{ID: uuid.New()},
-		StatusName:     enum.StatePartiallyPaid.String(),
-		AccountID:      payment.AccountID,
-		AmountReceived: model.NewBigIntFromInt(10),
-		PayAmount:      model.NewBigIntFromInt(100000000000000),
-		PaymentID:      payment.ID,
-	}
+	state := CreatePaymentState(payment.ID, payment.AccountID, enum.StatePartiallyPaid, big.NewInt(10))
 	payment.CurrentPaymentStateId = &state.ID
 	payment.CurrentPaymentState = state
 	payment.PaymentStates = append(payment.PaymentStates, state)
@@ -64,14 +62,7 @@ func addPartiallyPaidPaymentState(payment model.Payment) *model.Payment {
 }
 
 func addPaidPaymentState(payment model.Payment) *model.Payment {
-	state := model.PaymentState{
-		Base:           model.Base{ID: uuid.New()},
-		StatusName:     enum.StatePaid.String(),
-		AccountID:      payment.AccountID,
-		AmountReceived: model.NewBigIntFromInt(100000000000000),
-		PayAmount:      model.NewBigIntFromInt(100000000000000),
-		PaymentID:      payment.ID,
-	}
+	state := CreatePaymentState(payment.ID, payment.AccountID, enum.StatePaid, big.NewInt(100000000000000))
 	payment.CurrentPaymentStateId = &state.ID
 	payment.CurrentPaymentState = state
 	payment.PaymentStates = append(payment.PaymentStates, state)

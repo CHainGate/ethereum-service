@@ -20,15 +20,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// TestHelloName calls greetings.Hello with a name, checking
-// for a valid return value.
-func TestTest(t *testing.T) {
-	value := getTest()
-	if !(value == "Test:") {
-		t.Fatalf(`%v, want match for %v, nil`, value, "Test:")
-	}
-}
-
 func TestConnectingToTestnet(t *testing.T) {
 	createTestClientConnection(config.Opts.Test)
 	if clientTest == nil {

@@ -1,10 +1,11 @@
-package internal
+package service
 
 import (
 	"context"
 	"ethereum-service/backendClientApi"
 	"ethereum-service/internal/config"
 	"ethereum-service/model"
+	"ethereum-service/utils"
 	"fmt"
 	"math/big"
 	"os"
@@ -13,8 +14,8 @@ import (
 )
 
 func SendState(paymentId uuid.UUID, state model.PaymentState) {
-	payAmount, payAmountAccuracy := new(big.Float).SetInt(&state.PayAmount.Int).Float64()
-	amountReceived, amountReceivedAccuracy := new(big.Float).SetInt(&state.AmountReceived.Int).Float64()
+	payAmount, payAmountAccuracy := utils.GetETHFromWEI(&state.PayAmount.Int).Float64()
+	amountReceived, amountReceivedAccuracy := utils.GetETHFromWEI(&state.AmountReceived.Int).Float64()
 	if payAmountAccuracy == big.Exact && amountReceivedAccuracy == big.Exact {
 		paymentUpdateDto := *backendClientApi.NewPaymentUpdateDto(paymentId.String(), payAmount, "ETH", *backendClientApi.NewNullableFloat64(&amountReceived), state.StatusName) // PaymentUpdateDto |  (optional)
 
