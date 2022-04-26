@@ -228,7 +228,7 @@ func createForward(t *testing.T, client *ethclient.Client, chaingateAcc *model.A
 		t.Fatalf(`Balance on generated wallet %v, should be %v`, fromBalance, payAmount)
 	}
 
-	tx := forward(client, &p)
+	forward(client, &p)
 
 	if p.Account.Used == true {
 		t.Fatalf(`The used wallet is: %v, should be %v`, p.Account.Used, false)
@@ -240,11 +240,6 @@ func createForward(t *testing.T, client *ethclient.Client, chaingateAcc *model.A
 
 	if fromBalance.Cmp(payAmount) != 0 {
 		t.Fatalf(`Balance on generated wallet is: %v, should be %v`, fromBalance, payAmount)
-	}
-
-	_, err = bind.WaitMined(context.Background(), client, tx)
-	if err != nil {
-		log.Fatalf("Can't wait until transaction is mined %v", err)
 	}
 
 	toBalance, err := GetUserBalanceAt(client, common.HexToAddress(merchantAcc.Address), &merchantAcc.Remainder.Int)
