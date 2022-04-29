@@ -19,15 +19,16 @@ type Account struct {
 	Used       bool
 	Payments   []Payment
 	Remainder  *BigInt `gorm:"type:numeric(30);default:0"`
+	mode       string
 }
 
 type IAccountRepository interface {
-	GetFreeAccount() (*gorm.DB, *Account)
+	GetFreeAccount(mode string) (*gorm.DB, *Account)
 	CreateAccount(acc *Account) *Account
 	UpdateAccount(acc *Account) error
 }
 
-func CreateAccount() *Account {
+func CreateAccount(mode string) *Account {
 	account := Account{}
 	privateKey, err := crypto.GenerateKey()
 	if err != nil {
@@ -47,6 +48,7 @@ func CreateAccount() *Account {
 	account.Remainder = NewBigInt(big.NewInt(0))
 
 	account.Used = true
+	account.mode = mode
 
 	return &account
 }

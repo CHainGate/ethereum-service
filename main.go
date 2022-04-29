@@ -85,10 +85,6 @@ func checkAllAddresses() {
 	}
 }
 
-func getTest() string {
-	return "Test:"
-}
-
 func InitializeRouter() *mux.Router {
 	PaymentApiService := services.NewPaymentApiService()
 	PaymentApiController := openApi.NewPaymentApiController(PaymentApiService)

@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"ethereum-service/model"
+	"ethereum-service/utils"
 	"log"
 	"math/big"
 	"time"
@@ -20,12 +21,13 @@ var (
 	waitingPayment   *model.Payment
 	partiallyPayment *model.Payment
 	paidPayment      *model.Payment
+	finishedPayment  *model.Payment
 )
 
 func createEmptyPayment(acc model.Account, mAcc model.Account) *model.Payment {
 	return &model.Payment{
 		Account:       &acc,
-		Mode:          "Test",
+		Mode:          "main",
 		Base:          model.Base{ID: uuid.New()},
 		AccountID:     acc.ID,
 		PriceAmount:   100,
@@ -69,9 +71,17 @@ func addPaidPaymentState(payment model.Payment) *model.Payment {
 	return &payment
 }
 
+func addFinishedPaymentState(payment model.Payment) *model.Payment {
+	state := CreatePaymentState(payment.ID, payment.AccountID, enum.StateFinished, big.NewInt(100000000000000))
+	payment.CurrentPaymentStateId = &state.ID
+	payment.CurrentPaymentState = state
+	payment.PaymentStates = append(payment.PaymentStates, state)
+	return &payment
+}
+
 func GetChaingateAcc() model.Account {
 	if chaingateAcc == nil {
-		chaingateAcc = model.CreateAccount()
+		chaingateAcc = model.CreateAccount("main")
 		chaingateAcc.ID = uuid.New()
 	}
 	return *chaingateAcc
@@ -79,7 +89,7 @@ func GetChaingateAcc() model.Account {
 
 func GetMerchantAcc() model.Account {
 	if merchantAcc == nil {
-		merchantAcc = model.CreateAccount()
+		merchantAcc = model.CreateAccount("main")
 		merchantAcc.ID = uuid.New()
 	}
 	return *merchantAcc
@@ -113,9 +123,16 @@ func GetPaidPayment() model.Payment {
 	return *paidPayment
 }
 
+func GetFinishedPayment() model.Payment {
+	if finishedPayment == nil {
+		finishedPayment = addFinishedPaymentState(GetPaidPayment())
+	}
+	return *finishedPayment
+}
+
 func getPaymentRow(p model.Payment) *sqlmock.Rows {
 	return sqlmock.NewRows([]string{"id", "user_wallet", "mode", "price_amount", "price_currency", "current_payment_state_id"}).
-		AddRow(p.ID, GetMerchantAcc().Address, "Test", "100", "USD", p.CurrentPaymentStateId)
+		AddRow(p.ID, GetMerchantAcc().Address, "main", "100", "USD", p.CurrentPaymentStateId)
 }
 
 func getAccountRow(a model.Account) *sqlmock.Rows {
@@ -228,10 +245,37 @@ func SetupUpdatePaymentState(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 	return mock
 }
 
-func SetupUpdatePaymentStateToPaid(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
+func SetupUpdatePaymentStateToPaid(mock sqlmock.Sqlmock, amountPaid *big.Int) sqlmock.Sqlmock {
 	pp := GetPaidPayment()
+	pp.CurrentPaymentState.AmountReceived = model.NewBigInt(amountPaid)
 	ca := GetChaingateAcc()
 	stateRows := getPaymentStatesRow(ca, pp)
+	accRows := getAccountRow(ca)
+
+	mock.ExpectBegin()
+
+	mock.ExpectQuery("INSERT INTO \"accounts\"").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.PrivateKey, ca.Address, ca.Nonce, true, ca.Remainder, ca.ID).
+		WillReturnRows(accRows)
+	mock.ExpectQuery("INSERT INTO \"payment_states\"").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.CurrentPaymentState.PayAmount, pp.CurrentPaymentState.AmountReceived, pp.CurrentPaymentState.StatusName, pp.ID).
+		WillReturnRows(stateRows)
+	mock.ExpectExec("UPDATE").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.UserWallet, pp.Mode, pp.PriceAmount, pp.PriceCurrency, pp.CurrentPaymentStateId, pp.ID).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	return mock
+}
+
+func SetupUpdatePaymentStateToFinished(mock sqlmock.Sqlmock, amountPaid *big.Int) sqlmock.Sqlmock {
+	pp := GetFinishedPayment()
+	pp.CurrentPaymentState.AmountReceived = model.NewBigInt(amountPaid)
+	ca := GetChaingateAcc()
+	stateRows := getPaymentStatesRow(ca, pp)
+	ca.Nonce = ca.Nonce + 1
+	amountAfterPayment := big.NewInt(0).Sub(amountPaid, &pp.CurrentPaymentState.PayAmount.Int)
+	ca.Remainder = model.NewBigInt(big.NewInt(0).Add(amountAfterPayment, utils.GetChaingateEarnings(&pp.CurrentPaymentState.PayAmount.Int)))
 	accRows := getAccountRow(ca)
 
 	mock.ExpectBegin()
@@ -272,14 +316,13 @@ func SetupUpdateAccount(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 	return mock
 }
 
-func SetupUpdateAccountFree(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
+func SetupUpdateAccountFree(mock sqlmock.Sqlmock, nonce uint64) sqlmock.Sqlmock {
 	ca := GetChaingateAcc()
-	ca.Nonce = ca.Nonce + 1
+	ca.Nonce = nonce
 	ca.Used = false
-	ca.Remainder = model.NewBigIntFromInt(1000000000000)
 	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE \"accounts\"").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.PrivateKey, ca.Address, ca.Nonce, ca.Used, ca.Remainder, ca.ID).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.PrivateKey, ca.Address, ca.Nonce, ca.Used, sqlmock.AnyArg(), ca.ID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 	return mock
@@ -290,7 +333,7 @@ func SetupGetFreeAccount(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 	accRows := getFreeAccountRow(ca)
 
 	mock.ExpectQuery("SELECT (.+) FROM \"accounts\"").
-		WithArgs("false").
+		WithArgs("false", "main").
 		WillReturnRows(accRows)
 	return mock
 }

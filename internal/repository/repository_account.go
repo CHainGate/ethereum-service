@@ -19,9 +19,9 @@ var (
 	Account model.IAccountRepository
 )
 
-func (r *AccountRepository) GetFreeAccount() (*gorm.DB, *model.Account) {
+func (r *AccountRepository) GetFreeAccount(mode string) (*gorm.DB, *model.Account) {
 	acc := model.Account{}
-	result := r.DB.Where("used = ?", "false").First(&acc)
+	result := r.DB.Where("used = ? AND mode = ?", "false", mode).First(&acc)
 	return result, &acc
 }
 

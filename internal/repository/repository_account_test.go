@@ -30,7 +30,7 @@ func TestUpdateAccount(t *testing.T) {
 func TestGetFreeAccount(t *testing.T) {
 	mock, repo := NewAccountMock()
 	mock = testutils.SetupGetFreeAccount(mock)
-	repo.GetFreeAccount()
+	repo.GetFreeAccount("main")
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}

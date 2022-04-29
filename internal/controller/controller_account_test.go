@@ -11,7 +11,7 @@ func TestGetAccount(t *testing.T) {
 	repository.InitAccount(gormDb)
 	mock = testutils.SetupGetFreeAccount(mock)
 	mock = testutils.SetupUpdateAccount(mock)
-	GetAccount()
+	GetAccount("main")
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
