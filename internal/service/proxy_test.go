@@ -3,8 +3,9 @@ package service
 import (
 	"ethereum-service/internal/config"
 	"ethereum-service/internal/testutils"
-	"gopkg.in/h2non/gock.v1"
 	"testing"
+
+	"gopkg.in/h2non/gock.v1"
 )
 
 func TestGetETHAmount(t *testing.T) {

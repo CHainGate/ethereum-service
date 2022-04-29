@@ -123,7 +123,6 @@ func forward(client *ethclient.Client, payment *model.Payment) *types.Transactio
 	}
 
 	chainGateEarnings := utils.GetChaingateEarnings(&payment.CurrentPaymentState.PayAmount.Int)
-	payment.Account.Remainder.Add(&payment.Account.Remainder.Int, chainGateEarnings)
 
 	fees := big.NewInt(0).Mul(big.NewInt(21000), gasPrice)
 	feesAndChangateEarnings := big.NewInt(0).Add(fees, chainGateEarnings)
@@ -168,13 +167,11 @@ func forward(client *ethclient.Client, payment *model.Payment) *types.Transactio
 	}
 
 	finalBalanceOnChaingateWallet, err := GetBalanceAt(client, common.HexToAddress(payment.Account.Address))
-	fmt.Printf("finalBalanceOnChaingateWallet: %s\n", finalBalanceOnChaingateWallet.String())
 	if err != nil {
 		log.Fatalf("Unable to get Balance of chaingate wallet %v", err)
 	}
-	fmt.Printf("1. payment.Account.Remainder: %s\n", payment.Account.Remainder.String())
+
 	payment.Account.Remainder = model.NewBigInt(finalBalanceOnChaingateWallet)
-	fmt.Printf("2. payment.Account.Remainder: %s\n", payment.Account.Remainder.String())
 
 	fmt.Printf("tx sent: %s\n", signedTx.Hash().Hex())
 	payment.Account.Nonce = payment.Account.Nonce + 1

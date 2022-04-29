@@ -8,6 +8,7 @@ import (
 	"ethereum-service/internal/testutils"
 	"ethereum-service/model"
 	"ethereum-service/utils"
+	"fmt"
 	"log"
 	"math/big"
 	"regexp"
@@ -304,12 +305,12 @@ func newTestBackend(t *testing.T, address common.Address) (*node.Node, []*types.
 		t.Fatalf("can't create new node: %v", err)
 	}
 	// Create Ethereum Service
-	config := &ethconfig.Config{
+	c := &ethconfig.Config{
 		SyncMode: downloader.FullSync,
 		Genesis:  genesis,
 	}
-	config.Ethash.PowMode = ethash.ModeFake
-	ethservice, err := eth.New(n, config)
+	c.Ethash.PowMode = ethash.ModeFake
+	ethservice, err := eth.New(n, c)
 	if err != nil {
 		t.Fatalf("can't create new ethereum service: %v", err)
 	}
@@ -326,11 +327,11 @@ func newTestBackend(t *testing.T, address common.Address) (*node.Node, []*types.
 func generateTestChain(testAddr common.Address, testBalance *big.Int) (*core.Genesis, []*types.Block) {
 	geth.SetVerbosity(0)
 	db := rawdb.NewMemoryDatabase()
-	config := params.AllEthashProtocolChanges
+	c := params.AllEthashProtocolChanges
 	genesis := &core.Genesis{
 		GasLimit:   9223372036854775807,
 		Difficulty: big.NewInt(1),
-		Config:     config,
+		Config:     c,
 		Alloc:      core.GenesisAlloc{testAddr: {Balance: testBalance}},
 		ExtraData:  []byte("test genesis"),
 		Timestamp:  9000,
@@ -342,7 +343,7 @@ func generateTestChain(testAddr common.Address, testBalance *big.Int) (*core.Gen
 	}
 	gblock := genesis.ToBlock(db)
 	engine := ethash.NewFaker()
-	blocks, _ := core.GenerateChain(config, gblock, engine, db, 1, generate)
+	blocks, _ := core.GenerateChain(c, gblock, engine, db, 1, generate)
 	blocks = append([]*types.Block{gblock}, blocks...)
 	return genesis, blocks
 }
@@ -450,6 +451,10 @@ func TestCheckForwardEarnings(t *testing.T) {
 		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.StateFinished.String())
 	}
 	bal, err := GetBalanceAt(client, common.HexToAddress(config.Opts.TargetWallet))
+	bal2, err := GetBalanceAt(client, common.HexToAddress(p.Account.Address))
+	fmt.Printf("final: %s\n", bal2.String())
+	fmt.Printf("final2: %s\n", bal.String())
+
 	if err != nil {
 		t.Fatalf("Unable to check balance of %v", config.Opts.TargetWallet)
 	}
@@ -460,14 +465,14 @@ func TestCheckForwardEarnings(t *testing.T) {
 	chainGateEarnings := utils.GetChaingateEarnings(&p.CurrentPaymentState.PayAmount.Int)
 	p.Account.Remainder.Add(&p.Account.Remainder.Int, chainGateEarnings)
 
+	finalAmount := big.NewInt(0).Add(overpayAmount, chainGateEarnings)
 	fees := big.NewInt(0).Mul(big.NewInt(21000), config.Chain.GasPrice)
-	fees = big.NewInt(0).Mul(fees, big.NewInt(0))
-	feesAndChaingateEarnings := big.NewInt(0).Add(fees, chainGateEarnings)
-	feesChangateEarningsAndPayamount := big.NewInt(0).Add(feesAndChaingateEarnings, &p.CurrentPaymentState.PayAmount.Int)
-	finalAmount := big.NewInt(0).Sub(overpayAmount, feesChangateEarningsAndPayamount)
+	fees = big.NewInt(0).Mul(fees, big.NewInt(1))
+	finalAmount = big.NewInt(0).Sub(finalAmount, fees)
+	finalAmount = big.NewInt(0).Sub(finalAmount, &p.CurrentPaymentState.PayAmount.Int)
 
 	if bal.Cmp(finalAmount) != 0 {
-		t.Fatalf("Not the right amount was forwarded. Amount on wallet is \"%v\", but should be \"%v\"", bal.String(), finalAmount)
+		t.Fatalf("Not the right amount was forwarded. Amount on wallet is \"%v\", but should be \"%v\"", bal.String(), finalAmount.String())
 	}
 	if err = mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
