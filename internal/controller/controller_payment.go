@@ -18,7 +18,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func CreatePayment(mode string, priceAmount float64, priceCurrency string, wallet string) (*model.Payment, *float64, error) {
+func CreatePayment(mode string, priceAmount float64, priceCurrency string, wallet string) (*model.Payment, *big.Int, error) {
 	acc, err := GetAccount(mode)
 
 	if err != nil {
@@ -40,7 +40,7 @@ func CreatePayment(mode string, priceAmount float64, priceCurrency string, walle
 	final := utils.GetWEIFromETH(val)
 	_, err = repository.Payment.CreatePayment(&payment, final)
 
-	return &payment, val, nil
+	return &payment, final, nil
 }
 
 func CheckBalance(client *ethclient.Client, payment *model.Payment) {
