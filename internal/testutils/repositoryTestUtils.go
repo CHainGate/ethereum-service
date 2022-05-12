@@ -48,7 +48,7 @@ func CreatePaymentState(paymentID uuid.UUID, accountID uuid.UUID, state enum.Sta
 }
 
 func addWaitingPaymentState(payment model.Payment) *model.Payment {
-	state := CreatePaymentState(payment.ID, payment.AccountID, enum.StateWaiting, big.NewInt(0))
+	state := CreatePaymentState(payment.ID, payment.AccountID, enum.Waiting, big.NewInt(0))
 	payment.CurrentPaymentStateId = &state.ID
 	payment.CurrentPaymentState = state
 	payment.PaymentStates = append(payment.PaymentStates, state)
@@ -56,7 +56,7 @@ func addWaitingPaymentState(payment model.Payment) *model.Payment {
 }
 
 func addPartiallyPaidPaymentState(payment model.Payment) *model.Payment {
-	state := CreatePaymentState(payment.ID, payment.AccountID, enum.StatePartiallyPaid, big.NewInt(10))
+	state := CreatePaymentState(payment.ID, payment.AccountID, enum.PartiallyPaid, big.NewInt(10))
 	payment.CurrentPaymentStateId = &state.ID
 	payment.CurrentPaymentState = state
 	payment.PaymentStates = append(payment.PaymentStates, state)
@@ -64,7 +64,7 @@ func addPartiallyPaidPaymentState(payment model.Payment) *model.Payment {
 }
 
 func addPaidPaymentState(payment model.Payment) *model.Payment {
-	state := CreatePaymentState(payment.ID, payment.AccountID, enum.StatePaid, big.NewInt(100000000000000))
+	state := CreatePaymentState(payment.ID, payment.AccountID, enum.Paid, big.NewInt(100000000000000))
 	payment.CurrentPaymentStateId = &state.ID
 	payment.CurrentPaymentState = state
 	payment.PaymentStates = append(payment.PaymentStates, state)
@@ -72,7 +72,7 @@ func addPaidPaymentState(payment model.Payment) *model.Payment {
 }
 
 func addFinishedPaymentState(payment model.Payment) *model.Payment {
-	state := CreatePaymentState(payment.ID, payment.AccountID, enum.StateFinished, big.NewInt(100000000000000))
+	state := CreatePaymentState(payment.ID, payment.AccountID, enum.Finished, big.NewInt(100000000000000))
 	payment.CurrentPaymentStateId = &state.ID
 	payment.CurrentPaymentState = state
 	payment.PaymentStates = append(payment.PaymentStates, state)
@@ -81,7 +81,7 @@ func addFinishedPaymentState(payment model.Payment) *model.Payment {
 
 func GetChaingateAcc() model.Account {
 	if chaingateAcc == nil {
-		chaingateAcc = model.CreateAccount("main")
+		chaingateAcc = model.CreateAccount(enum.Main)
 		chaingateAcc.ID = uuid.New()
 	}
 	return *chaingateAcc
@@ -89,7 +89,7 @@ func GetChaingateAcc() model.Account {
 
 func GetMerchantAcc() model.Account {
 	if merchantAcc == nil {
-		merchantAcc = model.CreateAccount("main")
+		merchantAcc = model.CreateAccount(enum.Main)
 		merchantAcc.ID = uuid.New()
 	}
 	return *merchantAcc
@@ -154,7 +154,7 @@ func SetupCreatePayment(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.PrivateKey, ca.Address, ca.Nonce, true, ca.Remainder, ca.ID).
 		WillReturnRows(accRows)
 	mock.ExpectQuery("INSERT INTO \"payment_states\"").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, wp.CurrentPaymentState.PayAmount, "0", enum.StateWaiting.String(), sqlmock.AnyArg()).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, wp.CurrentPaymentState.PayAmount, "0", enum.Waiting.String(), sqlmock.AnyArg()).
 		WillReturnRows(stateRows)
 	mock.ExpectQuery("INSERT INTO \"payments\"").
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, ma.Address, ep.Mode, ep.PriceAmount, ep.PriceCurrency, sqlmock.AnyArg(), sqlmock.AnyArg()).
@@ -176,7 +176,7 @@ func SetupCreatePaymentWithoutIdCheck(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.PrivateKey, ca.Address, ca.Nonce, true, ca.Remainder, ca.ID).
 		WillReturnRows(accRows)
 	mock.ExpectQuery("INSERT INTO \"payment_states\"").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, wp.CurrentPaymentState.PayAmount, "0", enum.StateWaiting.String(), sqlmock.AnyArg()).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, wp.CurrentPaymentState.PayAmount, "0", enum.Waiting.String(), sqlmock.AnyArg()).
 		WillReturnRows(stateRows)
 	mock.ExpectQuery("INSERT INTO \"payments\"").
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, sqlmock.AnyArg(), ep.Mode, ep.PriceAmount, ep.PriceCurrency, sqlmock.AnyArg(), sqlmock.AnyArg()).

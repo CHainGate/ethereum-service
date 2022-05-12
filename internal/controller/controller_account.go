@@ -4,15 +4,16 @@ import (
 	"errors"
 	"ethereum-service/internal/repository"
 	"ethereum-service/model"
+	"github.com/CHainGate/backend/pkg/enum"
 
 	"gorm.io/gorm"
 )
 
-func GetAccount(mode string) (model.Account, error) {
+func GetAccount(mode enum.Mode) (model.Account, error) {
 	return getFreeAccount(mode)
 }
 
-func getFreeAccount(mode string) (model.Account, error) {
+func getFreeAccount(mode enum.Mode) (model.Account, error) {
 	result, acc := repository.Account.GetFreeAccount(mode)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {

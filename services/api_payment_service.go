@@ -14,6 +14,7 @@ import (
 	"ethereum-service/internal/controller"
 	"ethereum-service/openApi"
 	"fmt"
+	"github.com/CHainGate/backend/pkg/enum"
 	"net/http"
 )
 
@@ -30,7 +31,11 @@ func NewPaymentApiService() openApi.PaymentApiServicer {
 
 // CreatePayment - create new payment
 func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest openApi.PaymentRequest) (openApi.ImplResponse, error) {
-	payment, finalPayAmount, err := controller.CreatePayment(paymentRequest.Mode, paymentRequest.PriceAmount, paymentRequest.PriceCurrency, paymentRequest.Wallet)
+	mode, ok := enum.ParseStringToModeEnum(paymentRequest.Mode)
+	if !ok {
+		return openApi.Response(http.StatusInternalServerError, nil), fmt.Errorf("unable to parse mode")
+	}
+	payment, finalPayAmount, err := controller.CreatePayment(mode, paymentRequest.PriceAmount, paymentRequest.PriceCurrency, paymentRequest.Wallet)
 	if err != nil {
 		return openApi.Response(http.StatusInternalServerError, nil), fmt.Errorf("unable to get free address")
 	}
