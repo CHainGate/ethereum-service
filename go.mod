@@ -3,7 +3,7 @@ module ethereum-service
 go 1.17
 
 require (
-	github.com/CHainGate/backend v0.1.0
+	github.com/CHainGate/backend v0.2.1
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/ethereum/go-ethereum v1.10.16
 	github.com/google/uuid v1.3.0
@@ -11,6 +11,7 @@ require (
 	github.com/joho/godotenv v1.4.0
 	github.com/robfig/cron/v3 v3.0.0
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
+	gopkg.in/h2non/gock.v1 v1.1.2
 	gorm.io/driver/postgres v1.3.1
 	gorm.io/gorm v1.23.3
 )
@@ -72,7 +73,6 @@ require (
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba // indirect
 	google.golang.org/appengine v1.6.6 // indirect
 	google.golang.org/protobuf v1.25.0 // indirect
-	gopkg.in/h2non/gock.v1 v1.1.2 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/urfave/cli.v1 v1.20.0 // indirect
 )

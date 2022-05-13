@@ -3,6 +3,7 @@ package model
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"github.com/CHainGate/backend/pkg/enum"
 	"log"
 	"math/big"
 
@@ -19,15 +20,16 @@ type Account struct {
 	Used       bool
 	Payments   []Payment
 	Remainder  *BigInt `gorm:"type:numeric(30);default:0"`
+	mode       string
 }
 
 type IAccountRepository interface {
-	GetFreeAccount() (*gorm.DB, *Account)
+	GetFreeAccount(mode enum.Mode) (*gorm.DB, *Account)
 	CreateAccount(acc *Account) *Account
 	UpdateAccount(acc *Account) error
 }
 
-func CreateAccount() *Account {
+func CreateAccount(mode enum.Mode) *Account {
 	account := Account{}
 	privateKey, err := crypto.GenerateKey()
 	if err != nil {
@@ -47,6 +49,7 @@ func CreateAccount() *Account {
 	account.Remainder = NewBigInt(big.NewInt(0))
 
 	account.Used = true
+	account.mode = mode.String()
 
 	return &account
 }

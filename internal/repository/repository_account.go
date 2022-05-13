@@ -2,6 +2,7 @@ package repository
 
 import (
 	"ethereum-service/model"
+	"github.com/CHainGate/backend/pkg/enum"
 	"log"
 
 	"gorm.io/gorm"
@@ -19,9 +20,9 @@ var (
 	Account model.IAccountRepository
 )
 
-func (r *AccountRepository) GetFreeAccount() (*gorm.DB, *model.Account) {
+func (r *AccountRepository) GetFreeAccount(mode enum.Mode) (*gorm.DB, *model.Account) {
 	acc := model.Account{}
-	result := r.DB.Where("used = ?", "false").First(&acc)
+	result := r.DB.Where("used = ? AND mode = ?", "false", mode.String()).First(&acc)
 	return result, &acc
 }
 

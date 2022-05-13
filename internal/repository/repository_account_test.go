@@ -2,6 +2,7 @@ package repository
 
 import (
 	"ethereum-service/internal/testutils"
+	"github.com/CHainGate/backend/pkg/enum"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -30,7 +31,7 @@ func TestUpdateAccount(t *testing.T) {
 func TestGetFreeAccount(t *testing.T) {
 	mock, repo := NewAccountMock()
 	mock = testutils.SetupGetFreeAccount(mock)
-	repo.GetFreeAccount()
+	repo.GetFreeAccount(enum.Main)
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}

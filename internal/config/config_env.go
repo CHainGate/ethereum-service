@@ -9,11 +9,14 @@ import (
 )
 
 type OptsType struct {
-	Main           string
-	Test           string
-	ProxyBaseUrl   string
-	BackendBaseUrl string
-	DBOpts         DBOpts
+	Main                     string
+	Test                     string
+	ChaingateEarningsPercent string
+	TargetWallet             string
+	FeeFactor                string
+	ProxyBaseUrl             string
+	BackendBaseUrl           string
+	DBOpts                   DBOpts
 }
 
 type DBOpts struct {
@@ -50,6 +53,9 @@ func ReadOpts() {
 		o := &OptsType{}
 		flag.StringVar(&o.Main, "MAIN", lookupEnv("MAIN", "https://mainnet.infura.io/v3/"), "Mainnet")
 		flag.StringVar(&o.Test, "TEST", lookupEnv("TEST", "https://rinkeby.infura.io/v3/"), "Testnet")
+		flag.StringVar(&o.ChaingateEarningsPercent, "CHAINGATE_EARNINGS", lookupEnv("CHAINGATE_EARNINGS", "1"), "Percent how much percent CHainGate takes from the transaction")
+		flag.StringVar(&o.TargetWallet, "TARGET_WALLET", lookupEnv("TARGET_WALLET", "0xb794f5ea0ba39494ce839613fffba74279579268"), "Target wallet adddress to send the earned eth's")
+		flag.StringVar(&o.FeeFactor, "FEE_FACTOR", lookupEnv("FEE_FACTOR", "100"), "How many times the earnings should be higher than the fees to forward the earnings")
 		flag.StringVar(&o.DBOpts.DbHost, "DB_HOST", lookupEnv("DB_HOST"), "Database Host")
 		flag.StringVar(&o.DBOpts.DbUser, "DB_USER", lookupEnv("DB_USER"), "Database User")
 		flag.StringVar(&o.DBOpts.DbPassword, "DB_PASSWORD", lookupEnv("DB_PASSWORD"), "Database Password")

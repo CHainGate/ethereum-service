@@ -82,8 +82,7 @@ components:
         pay_address:
          type: string
         pay_amount:
-          type: number
-          format: double
+          type: string
         pay_currency:
          type: string
          enum:

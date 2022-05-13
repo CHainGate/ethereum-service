@@ -76,17 +76,13 @@ func checkAllAddresses() {
 	for _, s := range paymentIntents {
 		switch s.Mode {
 		case "main":
-			controller.CheckBalance(clientMain, &s)
+			go controller.CheckBalance(clientMain, &s)
 		case "test":
-			controller.CheckBalance(clientTest, &s)
+			go controller.CheckBalance(clientTest, &s)
 		default:
 			log.Fatal("Mode not supported!")
 		}
 	}
-}
-
-func getTest() string {
-	return "Test:"
 }
 
 func InitializeRouter() *mux.Router {
