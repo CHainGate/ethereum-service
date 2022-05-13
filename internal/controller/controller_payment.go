@@ -8,6 +8,7 @@ import (
 	"ethereum-service/model"
 	"ethereum-service/utils"
 	"fmt"
+	"github.com/CHainGate/backend/pkg/enum"
 	"log"
 	"math/big"
 
@@ -18,7 +19,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func CreatePayment(mode string, priceAmount float64, priceCurrency string, wallet string) (*model.Payment, *big.Int, error) {
+func CreatePayment(mode enum.Mode, priceAmount float64, priceCurrency string, wallet string) (*model.Payment, *big.Int, error) {
 	acc, err := GetAccount(mode)
 
 	if err != nil {
@@ -26,7 +27,7 @@ func CreatePayment(mode string, priceAmount float64, priceCurrency string, walle
 	}
 
 	payment := model.Payment{
-		Mode:          mode,
+		Mode:          mode.String(),
 		AccountID:     acc.ID,
 		Account:       &acc,
 		PriceAmount:   priceAmount,

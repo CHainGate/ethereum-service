@@ -22,7 +22,7 @@ func TestSendState(t *testing.T) {
 
 	accountID := uuid.New()
 	paymentID := uuid.New()
-	paymentState := testutils.CreatePaymentState(accountID, paymentID, enum.StatePartiallyPaid, big.NewInt(10))
+	paymentState := testutils.CreatePaymentState(accountID, paymentID, enum.PartiallyPaid, big.NewInt(10))
 	SendState(paymentID, paymentState)
 	if gock.IsDone() != true {
 		t.Fatalf("Request should have been sent, but there are open requests")
