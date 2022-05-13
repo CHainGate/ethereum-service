@@ -38,14 +38,6 @@ type Payment struct {
 	PaymentStates         []PaymentState `gorm:"<-:false"`
 }
 
-/*func (p *Payment) GetActiveState() PaymentState {
-	//TODO: is there a better solution?
-	sort.Slice(p.PaymentStates, func(i, j int) bool {
-		return p.PaymentStates[i].CreatedAt.After(p.PaymentStates[j].CreatedAt)
-	})
-	return p.PaymentStates[0]
-}*/
-
 func (p *Payment) GetActiveAmount() *big.Int {
 	return &p.CurrentPaymentState.PayAmount.Int
 }

@@ -19,7 +19,7 @@ type Account struct {
 	Used       bool
 	Payments   []Payment
 	Remainder  *BigInt `gorm:"type:numeric(30);default:0"`
-	mode       string
+	Mode       string  `gorm:"type:varchar"`
 }
 
 type IAccountRepository interface {
@@ -48,7 +48,7 @@ func CreateAccount(mode string) *Account {
 	account.Remainder = NewBigInt(big.NewInt(0))
 
 	account.Used = true
-	account.mode = mode
+	account.Mode = mode
 
 	return &account
 }
