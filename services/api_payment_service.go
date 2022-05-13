@@ -42,7 +42,7 @@ func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest op
 		PayAddress:    payment.Account.Address,
 		PayAmount:     finalPayAmount.String(),
 		PayCurrency:   "ETH",
-		PaymentStatus: payment.CurrentPaymentState.StatusName,
+		PaymentState:  payment.CurrentPaymentState.StatusName,
 	}
 	return openApi.Response(http.StatusCreated, paymentResponse), nil
 }
