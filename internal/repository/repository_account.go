@@ -2,8 +2,9 @@ package repository
 
 import (
 	"ethereum-service/model"
-	"github.com/CHainGate/backend/pkg/enum"
 	"log"
+
+	"github.com/CHainGate/backend/pkg/enum"
 
 	"gorm.io/gorm"
 )

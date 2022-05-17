@@ -3,8 +3,9 @@ package controller
 import (
 	"ethereum-service/internal/repository"
 	"ethereum-service/internal/testutils"
-	"github.com/CHainGate/backend/pkg/enum"
 	"testing"
+
+	"github.com/CHainGate/backend/pkg/enum"
 )
 
 func TestGetAccount(t *testing.T) {

@@ -71,6 +71,11 @@ func createClient(connectionURI string) (*ethclient.Client, error) {
 	return client, err
 }
 
+func cronHandler() {
+	go checkAllAddresses()
+	go getAllUnfinishedPayments()
+}
+
 func checkAllAddresses() {
 	paymentIntents := repository.Payment.GetAllPaymentIntents()
 	for _, s := range paymentIntents {
@@ -79,6 +84,20 @@ func checkAllAddresses() {
 			go controller.CheckBalance(clientMain, &s)
 		case "test":
 			go controller.CheckBalance(clientTest, &s)
+		default:
+			log.Fatal("Mode not supported!")
+		}
+	}
+}
+
+func getAllUnfinishedPayments() {
+	unfinishedPayments := repository.Payment.GetAllUnfinishedPayments()
+	for _, s := range unfinishedPayments {
+		switch s.Mode {
+		case "main":
+			go controller.HandleUnfinished(clientMain, &s)
+		case "test":
+			go controller.HandleUnfinished(clientTest, &s)
 		default:
 			log.Fatal("Mode not supported!")
 		}

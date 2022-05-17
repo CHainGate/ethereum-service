@@ -3,6 +3,7 @@ package model
 import (
 	"database/sql/driver"
 	"fmt"
+	"github.com/CHainGate/backend/pkg/enum"
 	"math/big"
 	"reflect"
 	"time"
@@ -19,9 +20,10 @@ type Base struct {
 }
 
 type IPaymentRepository interface {
-	UpdatePaymentState(payment *Payment, state string, balance *big.Int) PaymentState
+	UpdatePaymentState(payment *Payment)
 	CreatePayment(payment *Payment, finalPaymentAmount *big.Int) (*Payment, error)
 	GetAllPaymentIntents() []Payment
+	GetAllUnfinishedPayments() []Payment
 }
 
 type Payment struct {
@@ -43,12 +45,12 @@ func (p *Payment) GetActiveAmount() *big.Int {
 }
 
 /*
-	Updates a paymentstatus to the payment and also sets the new as the current one.
+	Updates a paymentstate to the payment and also sets the new as the current one.
 	It reuses the paymentAmount from last status
 */
-func (p *Payment) UpdatePaymentState(newState string, balance *big.Int) PaymentState {
+func (p *Payment) UpdatePaymentState(newState enum.State, balance *big.Int) PaymentState {
 	state := PaymentState{
-		StatusName:     newState,
+		StatusName:     newState.String(),
 		AccountID:      p.AccountID,
 		AmountReceived: NewBigInt(balance),
 		PayAmount:      p.CurrentPaymentState.PayAmount,
