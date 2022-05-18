@@ -2,8 +2,9 @@ package repository
 
 import (
 	"ethereum-service/internal/testutils"
-	"github.com/CHainGate/backend/pkg/enum"
 	"testing"
+
+	"github.com/CHainGate/backend/pkg/enum"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )

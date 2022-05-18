@@ -8,9 +8,10 @@ import (
 	"ethereum-service/model"
 	"ethereum-service/utils"
 	"fmt"
-	"github.com/CHainGate/backend/pkg/enum"
 	"log"
 	"math/big"
+
+	"github.com/CHainGate/backend/pkg/enum"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -53,20 +54,22 @@ func CheckBalance(client *ethclient.Client, payment *model.Payment) {
 	if payment.IsPaid(balance) {
 		log.Printf("PAYMENT REACHED!!!!")
 		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
-		state := repository.Payment.UpdatePaymentState(payment, "paid", balance)
-		service.SendState(payment.ID, state)
-		forward(client, payment)
-		state = repository.Payment.UpdatePaymentState(payment, "finished", balance)
-		service.SendState(payment.ID, state)
-		checkForwardEarnings(client, payment.Account)
-		payment.Account.Used = false
-		err = repository.Account.UpdateAccount(payment.Account)
-		if err != nil {
-			log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
+
+		if updateState(payment, balance, enum.Paid) != nil {
+			return
 		}
+
+		forward(client, payment)
+
+		if updateState(payment, balance, enum.Forwarded) != nil {
+			return
+		}
+
+		checkForwardEarnings(client, payment.Account)
+
+		cleanUp(payment, balance)
 	} else if payment.IsNewlyPartlyPaid(balance) {
-		state := repository.Payment.UpdatePaymentState(payment, "partially_paid", balance)
-		service.SendState(payment.ID, state)
+		updateState(payment, balance, enum.PartiallyPaid)
 		log.Printf("PAYMENT partly paid")
 		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
 	} else {
@@ -75,6 +78,28 @@ func CheckBalance(client *ethclient.Client, payment *model.Payment) {
 		log.Printf("Expected Payment: %s WEI, %s ETH", payment.GetActiveAmount().String(), utils.GetETHFromWEI(payment.GetActiveAmount()).String())
 		log.Printf("Please pay additional: %s WEI, %s ETH", big.NewInt(0).Sub(payment.GetActiveAmount(), balance).String(), big.NewFloat(0).Sub(utils.GetETHFromWEI(payment.GetActiveAmount()), utils.GetETHFromWEI(balance)).String())
 	}
+}
+
+func HandleUnfinished(client *ethclient.Client, payment *model.Payment) {
+
+}
+
+func cleanUp(payment *model.Payment, balance *big.Int) {
+	payment.Account.Used = false
+	if repository.Account.UpdateAccount(payment.Account) != nil {
+		log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
+	}
+	updateState(payment, balance, enum.Finished)
+}
+
+func updateState(payment *model.Payment, balance *big.Int, state enum.State) error {
+	newState := payment.UpdatePaymentState(state, balance)
+	err := service.SendState(payment.ID, newState)
+	if err != nil {
+		return nil
+	}
+	repository.Payment.UpdatePaymentState(payment)
+	return err
 }
 
 /*

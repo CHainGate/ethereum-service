@@ -396,13 +396,19 @@ func TestCheckBalancePaid(t *testing.T) {
 	gock.New("http://localhost:8000").
 		Put("/api/internal/payment/webhook").
 		Reply(200)
+	gock.New("http://localhost:8000").
+		Put("/api/internal/payment/webhook").
+		Reply(200)
 	mock, gormDb := testutils.NewMock()
 	repository.InitPayment(gormDb)
 	repository.InitAccount(gormDb)
 	p := testutils.GetWaitingPayment()
 	mock = testutils.SetupUpdatePaymentStateToPaid(mock, &p.CurrentPaymentState.PayAmount.Int)
-	mock = testutils.SetupUpdatePaymentStateToFinished(mock, &p.CurrentPaymentState.PayAmount.Int)
+	mock = testutils.SetupUpdatePaymentStateToForwarded(mock, &p.CurrentPaymentState.PayAmount.Int)
 	mock = testutils.SetupUpdateAccountFree(mock, 1)
+	amountAfterPayment := big.NewInt(0).Sub(&p.CurrentPaymentState.PayAmount.Int, &p.CurrentPaymentState.PayAmount.Int)
+	remainder := model.NewBigInt(big.NewInt(0).Add(amountAfterPayment, utils.GetChaingateEarnings(&p.CurrentPaymentState.PayAmount.Int)))
+	mock = testutils.SetupUpdatePaymentStateToFinished(mock, &p.CurrentPaymentState.PayAmount.Int, 1, remainder)
 	genesisAcc, client := customChainSetup(t)
 	txInitial := createInitialPayment(client, genesisAcc, &p.CurrentPaymentState.PayAmount.Int, p.Account.Address)
 	_, err := bind.WaitMined(context.Background(), client, txInitial)
@@ -427,14 +433,18 @@ func TestCheckForwardEarnings(t *testing.T) {
 	gock.New("http://localhost:8000").
 		Put("/api/internal/payment/webhook").
 		Reply(200)
+	gock.New("http://localhost:8000").
+		Put("/api/internal/payment/webhook").
+		Reply(200)
 	mock, gormDb := testutils.NewMock()
 	repository.InitPayment(gormDb)
 	repository.InitAccount(gormDb)
 	p := testutils.GetWaitingPayment()
 	overpayAmount := big.NewInt(0).Mul(&p.CurrentPaymentState.PayAmount.Int, big.NewInt(1000))
 	mock = testutils.SetupUpdatePaymentStateToPaid(mock, overpayAmount)
-	mock = testutils.SetupUpdatePaymentStateToFinished(mock, overpayAmount)
+	mock = testutils.SetupUpdatePaymentStateToForwarded(mock, overpayAmount)
 	mock = testutils.SetupUpdateAccountFree(mock, 2)
+	mock = testutils.SetupUpdatePaymentStateToFinished(mock, overpayAmount, 2, model.NewBigIntFromInt(0))
 	genesisAcc, client := customChainSetup(t)
 	txInitial := createInitialPayment(client, genesisAcc, overpayAmount, p.Account.Address)
 	_, err := bind.WaitMined(context.Background(), client, txInitial)

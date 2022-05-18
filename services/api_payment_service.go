@@ -14,8 +14,9 @@ import (
 	"ethereum-service/internal/controller"
 	"ethereum-service/openApi"
 	"fmt"
-	"github.com/CHainGate/backend/pkg/enum"
 	"net/http"
+
+	"github.com/CHainGate/backend/pkg/enum"
 )
 
 // PaymentApiService is a service that implements the logic for the PaymentApiServicer

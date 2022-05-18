@@ -4,6 +4,7 @@ import (
 	"errors"
 	"ethereum-service/internal/repository"
 	"ethereum-service/model"
+
 	"github.com/CHainGate/backend/pkg/enum"
 
 	"gorm.io/gorm"

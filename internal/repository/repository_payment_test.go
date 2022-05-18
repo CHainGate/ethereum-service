@@ -42,7 +42,8 @@ func TestUpdatePaymentState(t *testing.T) {
 	mock, repo := NewPaymentMock()
 	mock = testutils.SetupUpdatePaymentState(mock)
 	wp := testutils.GetWaitingPayment()
-	repo.UpdatePaymentState(&wp, enum.PartiallyPaid.String(), big.NewInt(10))
+	wp.UpdatePaymentState(enum.PartiallyPaid, big.NewInt(10))
+	repo.UpdatePaymentState(&wp)
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
