@@ -8,8 +8,10 @@ import (
 	"ethereum-service/model"
 	"ethereum-service/utils"
 	"fmt"
+	"golang.org/x/exp/slices"
 	"log"
 	"math/big"
+	"time"
 
 	"github.com/CHainGate/backend/pkg/enum"
 
@@ -45,10 +47,28 @@ func CreatePayment(mode enum.Mode, priceAmount float64, priceCurrency string, wa
 	return &payment, final, nil
 }
 
+func expire(payment *model.Payment, balance *big.Int) {
+	payment.Account.Remainder = model.NewBigInt(balance)
+	payment.Account.Used = false
+	if repository.Account.UpdateAccount(payment.Account) != nil {
+		log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
+	}
+	if updateState(payment, balance, enum.Expired) != nil {
+		return
+	}
+}
+
+func CheckIfExpired(payment *model.Payment, balance *big.Int) {
+	index := slices.IndexFunc(payment.PaymentStates, func(ps model.PaymentState) bool { return ps.StatusName == enum.Waiting.String() })
+	if payment.PaymentStates[index].CreatedAt.Add(15 * time.Minute).Before(time.Now()) {
+		expire(payment, balance)
+	}
+}
+
 func CheckBalance(client *ethclient.Client, payment *model.Payment) {
 	balance, err := GetUserBalanceAt(client, common.HexToAddress(payment.Account.Address), &payment.Account.Remainder.Int)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Error by getting balance %v", err)
 	}
 
 	if payment.IsPaid(balance) {
@@ -76,7 +96,8 @@ func CheckBalance(client *ethclient.Client, payment *model.Payment) {
 		log.Printf("PAYMENT still not reached Address: %s", payment.Account.Address)
 		log.Printf("Current Payment: %s WEI, %s ETH", balance.String(), utils.GetETHFromWEI(balance).String())
 		log.Printf("Expected Payment: %s WEI, %s ETH", payment.GetActiveAmount().String(), utils.GetETHFromWEI(payment.GetActiveAmount()).String())
-		log.Printf("Please pay additional: %s WEI, %s ETH", big.NewInt(0).Sub(payment.GetActiveAmount(), balance).String(), big.NewFloat(0).Sub(utils.GetETHFromWEI(payment.GetActiveAmount()), utils.GetETHFromWEI(balance)).String())
+		log.Printf("Please pay additional: %s WEI, %s ETH", big.NewInt(0).Sub(payment.GetActiveAmount(), balance).String(), utils.GetETHFromWEI(payment.GetActiveAmount()).Sub(utils.GetETHFromWEI(balance)).String())
+		CheckIfExpired(payment, balance)
 	}
 }
 
@@ -250,19 +271,19 @@ func forwardEarnings(client *ethclient.Client, account *model.Account, fees *big
 
 	err = client.SendTransaction(context.Background(), signedTx)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Unable to send Transaction %v", err)
 		return nil
 	}
 
 	_, err = bind.WaitMined(context.Background(), client, signedTx)
 	if err != nil {
-		log.Fatalf("Can't wait until transaction is mined %v", err)
+		log.Printf("Can't wait until transaction is mined %v", err)
 		return nil
 	}
 
 	finalBalanceOnChaingateWallet, err := GetBalanceAt(client, common.HexToAddress(account.Address))
 	if err != nil {
-		log.Fatalf("Unable to get Balance of chaingate wallet %v", err)
+		log.Printf("Unable to get Balance of chaingate wallet %v", err)
 		return nil
 	}
 	account.Remainder = model.NewBigInt(finalBalanceOnChaingateWallet)

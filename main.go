@@ -8,11 +8,10 @@ import (
 	"ethereum-service/openApi"
 	"ethereum-service/services"
 	"fmt"
+	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"strconv"
-
-	"github.com/gorilla/mux"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/robfig/cron/v3"

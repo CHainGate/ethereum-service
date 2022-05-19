@@ -1,6 +1,6 @@
 module ethereum-service
 
-go 1.17
+go 1.18
 
 require (
 	github.com/CHainGate/backend v0.2.1
@@ -10,6 +10,8 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/joho/godotenv v1.4.0
 	github.com/robfig/cron/v3 v3.0.0
+	github.com/shopspring/decimal v1.2.0
+	golang.org/x/exp v0.0.0-20220518171630-0b5c67f07fdf
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	gopkg.in/h2non/gock.v1 v1.1.2
 	gorm.io/driver/postgres v1.3.1

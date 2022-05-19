@@ -49,6 +49,9 @@ func (p *Payment) GetActiveAmount() *big.Int {
 	It reuses the paymentAmount from last status
 */
 func (p *Payment) UpdatePaymentState(newState enum.State, balance *big.Int) PaymentState {
+	if balance == nil {
+		balance = &p.CurrentPaymentState.AmountReceived.Int
+	}
 	state := PaymentState{
 		StatusName:     newState.String(),
 		AccountID:      p.AccountID,

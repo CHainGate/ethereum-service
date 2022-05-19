@@ -39,7 +39,7 @@ func createEmptyPayment(acc model.Account, mAcc model.Account) *model.Payment {
 
 func CreatePaymentState(paymentID uuid.UUID, accountID uuid.UUID, state enum.State, amountReceived *big.Int) model.PaymentState {
 	return model.PaymentState{
-		Base:           model.Base{ID: uuid.New()},
+		Base:           model.Base{ID: uuid.New(), CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		StatusName:     state.String(),
 		AccountID:      paymentID,
 		AmountReceived: model.NewBigInt(amountReceived),
@@ -92,6 +92,8 @@ func GetChaingateAcc() model.Account {
 	if chaingateAcc == nil {
 		chaingateAcc = model.CreateAccount(enum.Main)
 		chaingateAcc.ID = uuid.New()
+		chaingateAcc.CreatedAt = time.Now()
+		chaingateAcc.UpdatedAt = time.Now()
 	}
 	return *chaingateAcc
 }
@@ -100,6 +102,8 @@ func GetMerchantAcc() model.Account {
 	if merchantAcc == nil {
 		merchantAcc = model.CreateAccount(enum.Main)
 		merchantAcc.ID = uuid.New()
+		chaingateAcc.CreatedAt = time.Now()
+		chaingateAcc.UpdatedAt = time.Now()
 	}
 	return *merchantAcc
 }
@@ -141,12 +145,7 @@ func getPaymentRow(p model.Payment) *sqlmock.Rows {
 
 func getAccountRow(a model.Account) *sqlmock.Rows {
 	return sqlmock.NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "private_key", "address", "nonce", "used", "remainder", "mode"}).
-		AddRow(a.ID, time.Now(), time.Now(), time.Now(), a.PrivateKey, a.Address, a.Nonce, true, a.Remainder, a.Mode)
-}
-
-func getFreeAccountRow(a model.Account) *sqlmock.Rows {
-	return sqlmock.NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "private_key", "address", "nonce", "used", "remainder", "mode"}).
-		AddRow(a.ID, time.Now(), time.Now(), time.Now(), a.PrivateKey, a.Address, a.Nonce, false, a.Remainder, a.Mode)
+		AddRow(a.ID, time.Now(), time.Now(), time.Now(), a.PrivateKey, a.Address, a.Nonce, a.Used, a.Remainder, a.Mode)
 }
 
 func getPaymentStatesRow(a model.Account, p model.Payment) *sqlmock.Rows {
@@ -302,6 +301,7 @@ func SetupUpdatePaymentStateToFinished(mock sqlmock.Sqlmock, amountPaid *big.Int
 	ca.Remainder = remainder
 	stateRows := getPaymentStatesRow(ca, pp)
 	ca.Nonce = nonce
+	ca.Used = false
 	accRows := getAccountRow(ca)
 
 	mock.ExpectBegin()
@@ -356,7 +356,8 @@ func SetupUpdateAccountFree(mock sqlmock.Sqlmock, nonce uint64) sqlmock.Sqlmock 
 
 func SetupGetFreeAccount(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 	ca := GetChaingateAcc()
-	accRows := getFreeAccountRow(ca)
+	ca.Used = false
+	accRows := getAccountRow(ca)
 
 	mock.ExpectQuery("SELECT (.+) FROM \"accounts\"").
 		WithArgs("false", "main").
