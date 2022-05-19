@@ -29,7 +29,7 @@ func (r *PaymentRepository) CreatePayment(payment *model.Payment, finalPaymentAm
 	payment.AddNewPaymentState("waiting", big.NewInt(0), finalPaymentAmount)
 	result := r.DB.Create(&payment)
 	if result.Error != nil {
-		log.Fatal(result.Error)
+		log.Printf("Error by creating new Payment %v", result.Error)
 		return nil, result.Error
 	}
 	return payment, nil
@@ -40,6 +40,7 @@ func (r *PaymentRepository) GetAllPaymentIntents() []model.Payment {
 	r.DB.
 		Preload("Account").
 		Preload("CurrentPaymentState").
+		Preload("PaymentStates").
 		Joins("CurrentPaymentState").
 		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []string{"waiting", "partially_paid"}).
 		Find(&payments)

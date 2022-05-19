@@ -1,12 +1,13 @@
 package utils
 
 import (
+	"github.com/shopspring/decimal"
 	"math/big"
 	"testing"
 )
 
 func TestGetETHFromWEI(t *testing.T) {
-	shouldEthAmount := big.NewFloat(0.1)
+	shouldEthAmount := decimal.New(1, -1)
 	ethAmount := GetETHFromWEI(big.NewInt(100000000000000000))
 	if ethAmount.Cmp(shouldEthAmount) != 0 {
 		t.Fatalf(`The calculated ethAmount %v, should be: %v`, ethAmount, shouldEthAmount)

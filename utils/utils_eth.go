@@ -2,18 +2,16 @@ package utils
 
 import (
 	"crypto/ecdsa"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/shopspring/decimal"
 	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-func GetETHFromWEI(amount *big.Int) *big.Float {
-	return big.NewFloat(0).Quo(new(big.Float).SetInt(amount), big.NewFloat(1000000000000000000))
-}
-
-func GetETHFromWEIFloat(amount *big.Float) *big.Float {
-	return big.NewFloat(0).Quo(amount, big.NewFloat(1000000000000000000))
+func GetETHFromWEI(amount *big.Int) decimal.Decimal {
+	return decimal.NewFromBigInt(amount, 0).Div(decimal.NewFromFloat(params.Ether))
 }
 
 func GetWEIFromETH(val *float64) *big.Int {

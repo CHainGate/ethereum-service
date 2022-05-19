@@ -8,7 +8,6 @@ import (
 	"ethereum-service/internal/testutils"
 	"ethereum-service/model"
 	"ethereum-service/utils"
-	"fmt"
 	"log"
 	"math/big"
 	"regexp"
@@ -419,6 +418,9 @@ func TestCheckBalancePaid(t *testing.T) {
 	if p.CurrentPaymentState.StatusName != enum.Finished.String() {
 		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.Finished.String())
 	}
+	if p.Account.Used {
+		t.Fatalf("Accound is still used. Account is \"%v\", but should be \"%v\"", p.Account.Used, false)
+	}
 	if err = mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
@@ -456,12 +458,12 @@ func TestCheckForwardEarnings(t *testing.T) {
 		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.Finished.String())
 	}
 	bal, err := GetBalanceAt(client, common.HexToAddress(config.Opts.TargetWallet))
-	bal2, err := GetBalanceAt(client, common.HexToAddress(p.Account.Address))
-	fmt.Printf("final: %s\n", bal2.String())
-	fmt.Printf("final2: %s\n", bal.String())
 
 	if err != nil {
 		t.Fatalf("Unable to check balance of %v", config.Opts.TargetWallet)
+	}
+	if p.Account.Used {
+		t.Fatalf("Accound is still used. Account is \"%v\", but should be \"%v\"", p.Account.Used, false)
 	}
 	if p.Account.Remainder.Cmp(big.NewInt(0)) != 0 {
 		t.Fatalf("No amount was forwarded. Amount on wallet is \"%v\", but should be \"%v\"", p.Account.Remainder.String(), 0)
