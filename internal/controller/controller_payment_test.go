@@ -219,7 +219,7 @@ func createForward(t *testing.T, client *ethclient.Client, chaingateAcc *model.A
 	shouldChainGateEarnings := big.NewInt(1000000000000)
 	merchantAcc := model.CreateAccount(enum.Main)
 	p := testutils.GetPaidPayment()
-	p.UserWallet = merchantAcc.Address
+	p.MerchantWallet = merchantAcc.Address
 	p.CurrentPaymentState.PayAmount = model.NewBigInt(payAmount)
 	p.Account = chaingateAcc
 

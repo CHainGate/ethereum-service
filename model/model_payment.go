@@ -28,10 +28,10 @@ type IPaymentRepository interface {
 
 type Payment struct {
 	Base
-	Account    *Account
-	AccountID  uuid.UUID `gorm:"type:uuid"`
-	UserWallet string
-	Mode       string
+	Account        *Account
+	AccountID      uuid.UUID `gorm:"type:uuid"`
+	MerchantWallet string
+	Mode           string
 	//TODO: change to float64
 	PriceAmount           float64 `gorm:"type:numeric(30,15);default:0"`
 	PriceCurrency         string
