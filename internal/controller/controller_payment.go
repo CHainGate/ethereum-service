@@ -30,12 +30,12 @@ func CreatePayment(mode enum.Mode, priceAmount float64, priceCurrency string, wa
 	}
 
 	payment := model.Payment{
-		Mode:          mode.String(),
-		AccountID:     acc.ID,
-		Account:       &acc,
-		PriceAmount:   priceAmount,
-		PriceCurrency: priceCurrency,
-		UserWallet:    wallet,
+		Mode:           mode.String(),
+		AccountID:      acc.ID,
+		Account:        &acc,
+		PriceAmount:    priceAmount,
+		PriceCurrency:  priceCurrency,
+		MerchantWallet: wallet,
 	}
 
 	payment.ID = uuid.New()
@@ -143,7 +143,7 @@ func GetBalanceAt(client *ethclient.Client, address common.Address) (*big.Int, e
 }
 
 func forward(client *ethclient.Client, payment *model.Payment) *types.Transaction {
-	toAddress := common.HexToAddress(payment.UserWallet)
+	toAddress := common.HexToAddress(payment.MerchantWallet)
 	gasTipCap, err := client.SuggestGasTipCap(context.Background())
 	if err != nil {
 		log.Fatal(err)
