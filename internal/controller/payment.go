@@ -42,9 +42,40 @@ func CreatePayment(mode enum.Mode, priceAmount float64, priceCurrency string, wa
 
 	val := service.GetETHAmount(payment)
 	final := utils.GetWEIFromETH(val)
+	err = checkIfAmountIsTooLow(mode, final)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	_, err = repository.Payment.CreatePayment(&payment, final)
 
 	return &payment, final, nil
+}
+
+func checkIfAmountIsTooLow(mode enum.Mode, final *big.Int) error {
+	fees := big.NewInt(0)
+	var client *ethclient.Client
+	switch mode {
+	case enum.Main:
+		client = config.ClientTest
+	case enum.Test:
+		client = config.ClientTest
+	}
+	var gasPrice *big.Int
+	var err error
+	if config.Chain == nil {
+		gasPrice, err = client.SuggestGasPrice(context.Background())
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		gasPrice = config.Chain.GasPrice
+	}
+
+	if fees.Mul(gasPrice, big.NewInt(21000*2)).Cmp(final) > 0 {
+		return fmt.Errorf("requested amount is too low. Fees are: %v", fees)
+	}
+	return nil
 }
 
 func expire(payment *model.Payment, balance *big.Int) {
@@ -53,19 +84,38 @@ func expire(payment *model.Payment, balance *big.Int) {
 	if repository.Account.UpdateAccount(payment.Account) != nil {
 		log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
 	}
-	if updateState(payment, balance, enum.Expired) != nil {
+	if updateState(payment, nil, enum.Expired) != nil {
 		return
 	}
 }
 
 func CheckIfExpired(payment *model.Payment, balance *big.Int) {
+	if balance == nil {
+		balance = big.NewInt(0).Add(&payment.CurrentPaymentState.AmountReceived.Int, &payment.Account.Remainder.Int)
+	}
 	index := slices.IndexFunc(payment.PaymentStates, func(ps model.PaymentState) bool { return ps.StatusName == enum.Waiting.String() })
 	if payment.PaymentStates[index].CreatedAt.Add(15 * time.Minute).Before(time.Now()) {
 		expire(payment, balance)
 	}
 }
 
-func CheckBalance(client *ethclient.Client, payment *model.Payment) {
+func CheckBalanceNotify(payment *model.Payment, txValue *big.Int, blockNr uint64) {
+	balance := big.NewInt(0).Add(&payment.CurrentPaymentState.AmountReceived.Int, txValue)
+	if payment.IsPaid(balance) {
+		log.Printf("PAYMENT REACHED!!!!")
+		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
+		payment.ReceivingBlockNr = blockNr
+		if updateState(payment, balance, enum.Paid) != nil {
+			return
+		}
+	} else if payment.IsNewlyPartlyPaid(balance) {
+		updateState(payment, balance, enum.PartiallyPaid)
+		log.Printf("PAYMENT partly paid")
+		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
+	}
+}
+
+func CheckBalanceStartup(client *ethclient.Client, payment *model.Payment) {
 	balance, err := GetUserBalanceAt(client, common.HexToAddress(payment.Account.Address), &payment.Account.Remainder.Int)
 	if err != nil {
 		log.Printf("Error by getting balance %v", err)
@@ -74,20 +124,9 @@ func CheckBalance(client *ethclient.Client, payment *model.Payment) {
 	if payment.IsPaid(balance) {
 		log.Printf("PAYMENT REACHED!!!!")
 		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
-
 		if updateState(payment, balance, enum.Paid) != nil {
 			return
 		}
-
-		forward(client, payment)
-
-		if updateState(payment, balance, enum.Forwarded) != nil {
-			return
-		}
-
-		checkForwardEarnings(client, payment.Account)
-
-		cleanUp(payment, balance)
 	} else if payment.IsNewlyPartlyPaid(balance) {
 		updateState(payment, balance, enum.PartiallyPaid)
 		log.Printf("PAYMENT partly paid")
@@ -105,12 +144,57 @@ func HandleUnfinished(client *ethclient.Client, payment *model.Payment) {
 
 }
 
-func cleanUp(payment *model.Payment, balance *big.Int) {
+/*
+	Theoretically the best way to check it is, that you check the transaction receipt. Because the user can pay multiple times we would need to check multiple txs.
+    Because there is no limit and the user could spam us with a lot of txs and we would run out of API-calls to infura.
+    Therefore, it simply checks the balance after 6 blocks if it is still reached.
+*/
+func IsConfirmed(client *ethclient.Client, p *model.Payment) (bool, error) {
+	balance, err := GetBalanceAt(client, common.HexToAddress(p.Account.Address))
+	if err != nil {
+		return false, err
+	}
+	return p.IsPaid(balance), nil
+}
+
+func HandleConfirming(client *ethclient.Client, payment *model.Payment) *types.Transaction {
+	isConfirmed, err := IsConfirmed(client, payment)
+	if isConfirmed {
+		if updateState(payment, nil, enum.Confirmed) != nil {
+			return nil
+		}
+		tx := forward(client, payment)
+		if updateState(payment, nil, enum.Forwarded) != nil {
+			return nil
+		}
+		checkForwardEarnings(client, payment.Account)
+		cleanUp(payment)
+		return tx
+	} else if err != nil {
+		log.Printf("Error in getting balance. Acc Address: %v. Try again next confirming round", payment.Account.Address)
+	} else {
+		log.Printf("Balance not enough anymore. Potential reverted Tx. Checkout blockNr: %v, Acc Address: %v", payment.ReceivingBlockNr, payment.Account.Address)
+		finalBalanceOnChaingateWallet, err := GetBalanceAt(client, common.HexToAddress(payment.Account.Address))
+		if err != nil {
+			log.Printf("Error in getting balance in final recovery. Acc Address: %v", payment.Account.Address)
+			return nil
+		}
+		payment.Account.Remainder = model.NewBigInt(finalBalanceOnChaingateWallet)
+		payment.Account.Used = false
+		if repository.Account.UpdateAccount(payment.Account) != nil {
+			log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
+		}
+		updateState(payment, nil, enum.Failed)
+	}
+	return nil
+}
+
+func cleanUp(payment *model.Payment) {
 	payment.Account.Used = false
 	if repository.Account.UpdateAccount(payment.Account) != nil {
 		log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
 	}
-	updateState(payment, balance, enum.Finished)
+	updateState(payment, nil, enum.Finished)
 }
 
 func updateState(payment *model.Payment, balance *big.Int, state enum.State) error {
@@ -146,14 +230,14 @@ func forward(client *ethclient.Client, payment *model.Payment) *types.Transactio
 	toAddress := common.HexToAddress(payment.MerchantWallet)
 	gasTipCap, err := client.SuggestGasTipCap(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Couldn't get suggested gasTipCap %v", err)
 	}
 
 	var gasPrice *big.Int
 	if config.Chain == nil {
 		gasPrice, err = client.SuggestGasPrice(context.Background())
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("Couldn't get suggested gasPrice %v", err)
 		}
 	} else {
 		gasPrice = config.Chain.GasPrice
@@ -163,7 +247,7 @@ func forward(client *ethclient.Client, payment *model.Payment) *types.Transactio
 	if config.Chain == nil {
 		chainID, err = client.NetworkID(context.Background())
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("Couldn't get networkID %v", err)
 		}
 	} else {
 		chainID = config.Chain.ChainId
@@ -196,11 +280,11 @@ func forward(client *ethclient.Client, payment *model.Payment) *types.Transactio
 
 	key, err := utils.GetPrivateKey(payment.Account.PrivateKey)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Couldn't get privateKey %v", err)
 	}
 	signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(chainID), key)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Couldn't get latests signer for ChainID %v", err)
 	}
 
 	err = client.SendTransaction(context.Background(), signedTx)
@@ -222,6 +306,7 @@ func forward(client *ethclient.Client, payment *model.Payment) *types.Transactio
 
 	fmt.Printf("tx sent: %s\n", signedTx.Hash().Hex())
 	payment.Account.Nonce = payment.Account.Nonce + 1
+	payment.ForwardingTransactionHash = signedTx.Hash().String()
 	return signedTx
 }
 

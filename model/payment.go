@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"github.com/CHainGate/backend/pkg/enum"
+	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 	"reflect"
 	"time"
@@ -23,21 +24,26 @@ type IPaymentRepository interface {
 	UpdatePaymentState(payment *Payment)
 	CreatePayment(payment *Payment, finalPaymentAmount *big.Int) (*Payment, error)
 	GetAllPaymentIntents() []Payment
+	GetModePaymentIntents(mode enum.Mode) []Payment
+	GetPaymentIntentByAddress(address *common.Address) (*gorm.DB, Payment)
 	GetAllUnfinishedPayments() []Payment
+	GetAllConfirmingPayments(mode enum.Mode) []Payment
 }
 
 type Payment struct {
 	Base
-	Account        *Account
-	AccountID      uuid.UUID `gorm:"type:uuid"`
-	MerchantWallet string
-	Mode           string
-	//TODO: change to float64
-	PriceAmount           float64 `gorm:"type:numeric(30,15);default:0"`
-	PriceCurrency         string
-	CurrentPaymentStateId *uuid.UUID     `gorm:"type:uuid"`
-	CurrentPaymentState   PaymentState   `gorm:"foreignKey:CurrentPaymentStateId"`
-	PaymentStates         []PaymentState `gorm:"<-:false"`
+	Account                   *Account
+	AccountID                 uuid.UUID `gorm:"type:uuid"`
+	MerchantWallet            string
+	Mode                      string
+	PriceAmount               float64 `gorm:"type:numeric(30,15);default:0"`
+	PriceCurrency             string
+	CurrentPaymentStateId     *uuid.UUID     `gorm:"type:uuid"`
+	CurrentPaymentState       PaymentState   `gorm:"foreignKey:CurrentPaymentStateId"`
+	PaymentStates             []PaymentState `gorm:"<-:false"`
+	ForwardingTransactionHash string
+	ReceivingBlockNr          uint64
+	ForwardingBlockNr         uint64
 }
 
 func (p *Payment) GetActiveAmount() *big.Int {
@@ -71,6 +77,10 @@ func (p *Payment) IsNewlyPartlyPaid(balance *big.Int) bool {
 
 func (p *Payment) IsPaid(balance *big.Int) bool {
 	return balance.Cmp(p.GetActiveAmount()) >= 0
+}
+
+func (p *Payment) IsConfirming() bool {
+	return p.CurrentPaymentState.StatusName == enum.Paid.String()
 }
 
 /*

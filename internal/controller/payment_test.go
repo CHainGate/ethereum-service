@@ -33,6 +33,10 @@ import (
 
 func TestCreatePayment(t *testing.T) {
 	config.ReadOpts()
+	config.Chain = &config.ChainConfig{
+		ChainId:  big.NewInt(1337),
+		GasPrice: big.NewInt(params.InitialBaseFee),
+	}
 	expectedPayAmountFloat := 0.0001
 	expectedPayAmountBigInt := utils.GetWEIFromETH(&expectedPayAmountFloat)
 	mock, gormDb := testutils.NewMock()
@@ -352,16 +356,16 @@ func NewAuth(key *ecdsa.PrivateKey, ctx context.Context) (*bind.TransactOpts, er
 	return auth, nil
 }
 
-func TestCheckBalanceWaiting(t *testing.T) {
+func TestCheckBalanceCronWaiting(t *testing.T) {
 	_, client := customChainSetup(t)
 	p := testutils.GetWaitingPayment()
-	CheckBalance(client, &p)
+	CheckBalanceStartup(client, &p)
 	if p.CurrentPaymentState.StatusName != enum.Waiting.String() {
 		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.Waiting.String())
 	}
 }
 
-func TestCheckBalancePartiallyPaid(t *testing.T) {
+func TestCheckBalanceCronPartiallyPaid(t *testing.T) {
 	config.ReadOpts()
 	defer gock.Off() // Flush pending mocks after test execution
 	gock.New("http://localhost:8000").
@@ -377,7 +381,7 @@ func TestCheckBalancePartiallyPaid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Can't wait until transaction is mined %v", err)
 	}
-	CheckBalance(client, &p)
+	CheckBalanceStartup(client, &p)
 	if p.CurrentPaymentState.StatusName != enum.PartiallyPaid.String() {
 		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.PartiallyPaid.String())
 	}
@@ -386,15 +390,22 @@ func TestCheckBalancePartiallyPaid(t *testing.T) {
 	}
 }
 
-func TestCheckBalancePaid(t *testing.T) {
+func TestCheckBalanceCronPaidAndConfirmed(t *testing.T) {
 	config.ReadOpts()
 	defer gock.Off() // Flush pending mocks after test execution
+	// Paid
 	gock.New("http://localhost:8000").
 		Put("/api/internal/payment/webhook").
 		Reply(200)
+	// Forwarded
 	gock.New("http://localhost:8000").
 		Put("/api/internal/payment/webhook").
 		Reply(200)
+	// Confirmed
+	gock.New("http://localhost:8000").
+		Put("/api/internal/payment/webhook").
+		Reply(200)
+	// Finished
 	gock.New("http://localhost:8000").
 		Put("/api/internal/payment/webhook").
 		Reply(200)
@@ -403,6 +414,7 @@ func TestCheckBalancePaid(t *testing.T) {
 	repository.InitAccount(gormDb)
 	p := testutils.GetWaitingPayment()
 	mock = testutils.SetupUpdatePaymentStateToPaid(mock, &p.CurrentPaymentState.PayAmount.Int)
+	mock = testutils.SetupUpdatePaymentStateToConfirmed(mock, &p.CurrentPaymentState.PayAmount.Int)
 	mock = testutils.SetupUpdatePaymentStateToForwarded(mock, &p.CurrentPaymentState.PayAmount.Int)
 	mock = testutils.SetupUpdateAccountFree(mock, 1)
 	amountAfterPayment := big.NewInt(0).Sub(&p.CurrentPaymentState.PayAmount.Int, &p.CurrentPaymentState.PayAmount.Int)
@@ -414,7 +426,11 @@ func TestCheckBalancePaid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Can't wait until transaction is mined %v", err)
 	}
-	CheckBalance(client, &p)
+	CheckBalanceStartup(client, &p)
+	if p.CurrentPaymentState.StatusName != enum.Paid.String() {
+		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.Paid.String())
+	}
+	HandleConfirming(client, &p)
 	if p.CurrentPaymentState.StatusName != enum.Finished.String() {
 		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.Finished.String())
 	}
@@ -429,12 +445,19 @@ func TestCheckBalancePaid(t *testing.T) {
 func TestCheckForwardEarnings(t *testing.T) {
 	config.ReadOpts()
 	defer gock.Off() // Flush pending mocks after test execution
+	// Paid
 	gock.New("http://localhost:8000").
 		Put("/api/internal/payment/webhook").
 		Reply(200)
+	// Forwarded
 	gock.New("http://localhost:8000").
 		Put("/api/internal/payment/webhook").
 		Reply(200)
+	// Confirmed
+	gock.New("http://localhost:8000").
+		Put("/api/internal/payment/webhook").
+		Reply(200)
+	// Finished
 	gock.New("http://localhost:8000").
 		Put("/api/internal/payment/webhook").
 		Reply(200)
@@ -444,6 +467,7 @@ func TestCheckForwardEarnings(t *testing.T) {
 	p := testutils.GetWaitingPayment()
 	overpayAmount := big.NewInt(0).Mul(&p.CurrentPaymentState.PayAmount.Int, big.NewInt(1000))
 	mock = testutils.SetupUpdatePaymentStateToPaid(mock, overpayAmount)
+	mock = testutils.SetupUpdatePaymentStateToConfirmed(mock, overpayAmount)
 	mock = testutils.SetupUpdatePaymentStateToForwarded(mock, overpayAmount)
 	mock = testutils.SetupUpdateAccountFree(mock, 2)
 	mock = testutils.SetupUpdatePaymentStateToFinished(mock, overpayAmount, 2, model.NewBigIntFromInt(0))
@@ -453,7 +477,8 @@ func TestCheckForwardEarnings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Can't wait until transaction is mined %v", err)
 	}
-	CheckBalance(client, &p)
+	CheckBalanceStartup(client, &p)
+	HandleConfirming(client, &p)
 	if p.CurrentPaymentState.StatusName != enum.Finished.String() {
 		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.Finished.String())
 	}
