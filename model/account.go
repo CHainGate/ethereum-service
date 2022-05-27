@@ -25,9 +25,9 @@ type Account struct {
 }
 
 type IAccountRepository interface {
-	GetFreeAccount(mode enum.Mode) (*gorm.DB, *Account)
-	CreateAccount(acc *Account) *Account
-	UpdateAccount(acc *Account) error
+	GetFree(mode enum.Mode) (*gorm.DB, *Account)
+	Create(acc *Account) *Account
+	Update(acc *Account) error
 }
 
 func CreateAccount(mode enum.Mode) *Account {

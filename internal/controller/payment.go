@@ -47,7 +47,7 @@ func CreatePayment(mode enum.Mode, priceAmount float64, priceCurrency string, wa
 		return nil, nil, err
 	}
 
-	_, err = repository.Payment.CreatePayment(&payment, final)
+	_, err = repository.Payment.Create(&payment, final)
 
 	return &payment, final, nil
 }
@@ -81,7 +81,7 @@ func checkIfAmountIsTooLow(mode enum.Mode, final *big.Int) error {
 func expire(payment *model.Payment, balance *big.Int) {
 	payment.Account.Remainder = model.NewBigInt(balance)
 	payment.Account.Used = false
-	if repository.Account.UpdateAccount(payment.Account) != nil {
+	if repository.Account.Update(payment.Account) != nil {
 		log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
 	}
 	if updateState(payment, nil, enum.Expired) != nil {
@@ -181,7 +181,7 @@ func HandleConfirming(client *ethclient.Client, payment *model.Payment) *types.T
 		}
 		payment.Account.Remainder = model.NewBigInt(finalBalanceOnChaingateWallet)
 		payment.Account.Used = false
-		if repository.Account.UpdateAccount(payment.Account) != nil {
+		if repository.Account.Update(payment.Account) != nil {
 			log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
 		}
 		updateState(payment, nil, enum.Failed)
@@ -191,7 +191,7 @@ func HandleConfirming(client *ethclient.Client, payment *model.Payment) *types.T
 
 func cleanUp(payment *model.Payment) {
 	payment.Account.Used = false
-	if repository.Account.UpdateAccount(payment.Account) != nil {
+	if repository.Account.Update(payment.Account) != nil {
 		log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
 	}
 	updateState(payment, nil, enum.Finished)

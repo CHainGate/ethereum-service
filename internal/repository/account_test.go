@@ -13,7 +13,7 @@ func TestCreateAccount(t *testing.T) {
 	mock, repo := NewAccountMock()
 	mock = testutils.SetupCreateAccount(mock)
 	ca := testutils.GetChaingateAcc()
-	repo.CreateAccount(&ca)
+	repo.Create(&ca)
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
@@ -23,7 +23,7 @@ func TestUpdateAccount(t *testing.T) {
 	mock, repo := NewAccountMock()
 	mock = testutils.SetupUpdateAccount(mock)
 	ca := testutils.GetChaingateAcc()
-	repo.UpdateAccount(&ca)
+	repo.Update(&ca)
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
@@ -32,7 +32,7 @@ func TestUpdateAccount(t *testing.T) {
 func TestGetFreeAccount(t *testing.T) {
 	mock, repo := NewAccountMock()
 	mock = testutils.SetupGetFreeAccount(mock)
-	repo.GetFreeAccount(enum.Main)
+	repo.GetFree(enum.Main)
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}

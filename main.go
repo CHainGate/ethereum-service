@@ -8,7 +8,6 @@ import (
 	repository "ethereum-service/internal/repository"
 	"ethereum-service/openApi"
 	"ethereum-service/services"
-	"fmt"
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -16,8 +15,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-
-	"github.com/robfig/cron/v3"
 )
 
 func main() {
@@ -25,10 +22,10 @@ func main() {
 	database.DbInit()
 	router := InitializeRouter()
 
-	//createCronJob()
-
 	config.CreateMainClientConnection(config.Opts.Main)
 	config.CreateTestClientConnection(config.Opts.Test)
+
+	checkAllAddresses()
 
 	go listenToEthChain(config.ClientMain, enum.Main)
 	go listenToEthChain(config.ClientTest, enum.Test)
@@ -36,21 +33,11 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(9000), router))
 }
 
-func createCronJob() {
-	c := cron.New()
-	_, err := c.AddFunc("@every 15s", cronHandler)
-	if err != nil {
-		fmt.Println("Unable to add cron trigger")
-	}
-	c.Start()
-}
-
-func cronHandler() {
-	go checkAllAddresses()
-}
-
+/*
+   Recovery
+*/
 func checkAllAddresses() {
-	payments := repository.Payment.GetAllPayments()
+	payments := repository.Payment.GetAll()
 	for _, s := range payments {
 		switch s.Mode {
 		case enum.Main:
@@ -64,7 +51,7 @@ func checkAllAddresses() {
 }
 
 func checkConfirming(client *ethclient.Client, currentBlockNr uint64, mode enum.Mode) {
-	payments := repository.Payment.GetAllConfirmingPayments(mode)
+	payments := repository.Payment.GetAllConfirming(mode)
 	for _, p := range payments {
 		// This could be maybe done via SQL query
 		log.Printf("blocknr: %v", p.ReceivingBlockNr)
@@ -94,7 +81,7 @@ func listenToEthChain(client *ethclient.Client, mode enum.Mode) {
 				log.Fatal(err)
 			}
 
-			payments := repository.Payment.GetModePayments(mode)
+			payments := repository.Payment.GetByMode(mode)
 			for _, p := range payments {
 				for _, tx := range block.Transactions() {
 					if tx.To() != nil && tx.To().Hex() == p.Account.Address {
@@ -106,20 +93,6 @@ func listenToEthChain(client *ethclient.Client, mode enum.Mode) {
 			}
 
 			checkConfirming(client, block.Number().Uint64(), mode)
-		}
-	}
-}
-
-func getAllUnfinishedPayments() {
-	unfinishedPayments := repository.Payment.GetAllUnfinishedPayments()
-	for _, s := range unfinishedPayments {
-		switch s.Mode {
-		case enum.Main:
-			go controller.HandleUnfinished(config.ClientMain, &s)
-		case enum.Test:
-			go controller.HandleUnfinished(config.ClientTest, &s)
-		default:
-			log.Fatal("Mode not supported!")
 		}
 	}
 }

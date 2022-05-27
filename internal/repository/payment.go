@@ -25,7 +25,7 @@ func (r *PaymentRepository) UpdatePaymentState(payment *model.Payment) {
 	r.DB.Save(&payment)
 }
 
-func (r *PaymentRepository) CreatePayment(payment *model.Payment, finalPaymentAmount *big.Int) (*model.Payment, error) {
+func (r *PaymentRepository) Create(payment *model.Payment, finalPaymentAmount *big.Int) (*model.Payment, error) {
 	payment.AddNewPaymentState(enum.Waiting, big.NewInt(0), finalPaymentAmount)
 	result := r.DB.Create(&payment)
 	if result.Error != nil {
@@ -35,19 +35,19 @@ func (r *PaymentRepository) CreatePayment(payment *model.Payment, finalPaymentAm
 	return payment, nil
 }
 
-func (r *PaymentRepository) GetAllPayments() []model.Payment {
+func (r *PaymentRepository) GetAll() []model.Payment {
 	var payments []model.Payment
 	r.DB.
 		Preload("Account").
 		Preload("CurrentPaymentState").
 		Preload("PaymentStates").
 		Joins("CurrentPaymentState").
-		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []string{"waiting", "partially_paid"}).
+		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []enum.State{enum.Waiting, enum.PartiallyPaid}).
 		Find(&payments)
 	return payments
 }
 
-func (r *PaymentRepository) GetModePayments(mode enum.Mode) []model.Payment {
+func (r *PaymentRepository) GetByMode(mode enum.Mode) []model.Payment {
 	var payments []model.Payment
 	r.DB.
 		Preload("Account").
@@ -55,30 +55,30 @@ func (r *PaymentRepository) GetModePayments(mode enum.Mode) []model.Payment {
 		Preload("CurrentPaymentState").
 		Preload("PaymentStates").
 		Joins("CurrentPaymentState").
-		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []string{"waiting", "partially_paid"}).
+		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []enum.State{enum.Waiting, enum.PartiallyPaid}).
 		Find(&payments)
 	return payments
 }
 
-func (r *PaymentRepository) GetAllUnfinishedPayments() []model.Payment {
+func (r *PaymentRepository) GetAllUnfinished() []model.Payment {
 	var payments []model.Payment
 	r.DB.
 		Preload("Account").
 		Preload("CurrentPaymentState").
 		Joins("CurrentPaymentState").
-		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []string{enum.Confirmed.String(), enum.Forwarded.String()}).
+		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []enum.State{enum.Confirmed, enum.Forwarded}).
 		Find(&payments)
 	return payments
 }
 
-func (r *PaymentRepository) GetAllConfirmingPayments(mode enum.Mode) []model.Payment {
+func (r *PaymentRepository) GetAllConfirming(mode enum.Mode) []model.Payment {
 	var payments []model.Payment
-	r.DB.Debug().
+	r.DB.
 		Where("mode = ?", mode).
 		Preload("Account").
 		Preload("CurrentPaymentState").
 		Joins("CurrentPaymentState").
-		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []string{enum.Paid.String()}).
+		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []enum.State{enum.Paid}).
 		Find(&payments)
 	return payments
 }

@@ -21,11 +21,11 @@ type Base struct {
 
 type IPaymentRepository interface {
 	UpdatePaymentState(payment *Payment)
-	CreatePayment(payment *Payment, finalPaymentAmount *big.Int) (*Payment, error)
-	GetAllPayments() []Payment
-	GetModePayments(mode enum.Mode) []Payment
-	GetAllUnfinishedPayments() []Payment
-	GetAllConfirmingPayments(mode enum.Mode) []Payment
+	Create(payment *Payment, finalPaymentAmount *big.Int) (*Payment, error)
+	GetAll() []Payment
+	GetByMode(mode enum.Mode) []Payment
+	GetAllUnfinished() []Payment
+	GetAllConfirming(mode enum.Mode) []Payment
 }
 
 type Payment struct {
