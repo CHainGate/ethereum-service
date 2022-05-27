@@ -23,7 +23,7 @@ var (
 
 func (r *AccountRepository) GetFreeAccount(mode enum.Mode) (*gorm.DB, *model.Account) {
 	acc := model.Account{}
-	result := r.DB.Where("used = ? AND mode = ?", "false", mode.String()).First(&acc)
+	result := r.DB.Where("used = ? AND mode = ?", "false", mode).First(&acc)
 	return result, &acc
 }
 

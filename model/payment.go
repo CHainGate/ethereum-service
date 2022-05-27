@@ -4,7 +4,6 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"github.com/CHainGate/backend/pkg/enum"
-	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 	"reflect"
 	"time"
@@ -25,7 +24,6 @@ type IPaymentRepository interface {
 	CreatePayment(payment *Payment, finalPaymentAmount *big.Int) (*Payment, error)
 	GetAllPayments() []Payment
 	GetModePayments(mode enum.Mode) []Payment
-	GetPaymentsByAddress(address *common.Address) (*gorm.DB, Payment)
 	GetAllUnfinishedPayments() []Payment
 	GetAllConfirmingPayments(mode enum.Mode) []Payment
 }
@@ -35,7 +33,7 @@ type Payment struct {
 	Account                   *Account
 	AccountID                 uuid.UUID `gorm:"type:uuid"`
 	MerchantWallet            string
-	Mode                      string
+	Mode                      enum.Mode
 	PriceAmount               float64 `gorm:"type:numeric(30,15);default:0"`
 	PriceCurrency             string
 	CurrentPaymentStateId     *uuid.UUID     `gorm:"type:uuid"`
@@ -59,7 +57,7 @@ func (p *Payment) UpdatePaymentState(newState enum.State, balance *big.Int) Paym
 		balance = &p.CurrentPaymentState.AmountReceived.Int
 	}
 	state := PaymentState{
-		StatusName:     newState.String(),
+		StatusName:     newState,
 		AccountID:      p.AccountID,
 		AmountReceived: NewBigInt(balance),
 		PayAmount:      p.CurrentPaymentState.PayAmount,
@@ -80,13 +78,13 @@ func (p *Payment) IsPaid(balance *big.Int) bool {
 }
 
 func (p *Payment) IsConfirming() bool {
-	return p.CurrentPaymentState.StatusName == enum.Paid.String()
+	return p.CurrentPaymentState.StatusName == enum.Paid
 }
 
 /*
 	Adds a paymentstatus to the payment and also sets the new as the current one.
 */
-func (p *Payment) AddNewPaymentState(newState string, balance *big.Int, payAmount *big.Int) PaymentState {
+func (p *Payment) AddNewPaymentState(newState enum.State, balance *big.Int, payAmount *big.Int) PaymentState {
 	state := PaymentState{
 		StatusName:     newState,
 		AccountID:      p.AccountID,
@@ -104,16 +102,16 @@ type PaymentState struct {
 	AccountID      uuid.UUID `gorm:"type:uuid;"`
 	PayAmount      *BigInt   `gorm:"type:numeric(30);default:0"`
 	AmountReceived *BigInt   `gorm:"type:numeric(30);default:0"`
-	StatusName     string
+	StatusName     enum.State
 	PaymentID      uuid.UUID `gorm:"type:uuid"`
 }
 
 func (ps *PaymentState) IsWaitingForPayment() bool {
-	return ps.StatusName == "partially_paid" || ps.StatusName == "waiting"
+	return ps.StatusName == enum.PartiallyPaid || ps.StatusName == enum.Waiting
 }
 
 func (ps *PaymentState) IsPaid() bool {
-	return ps.StatusName == "paid"
+	return ps.StatusName == enum.Paid
 }
 
 type BigInt struct {

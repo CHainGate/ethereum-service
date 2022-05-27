@@ -30,7 +30,7 @@ func CreatePayment(mode enum.Mode, priceAmount float64, priceCurrency string, wa
 	}
 
 	payment := model.Payment{
-		Mode:           mode.String(),
+		Mode:           mode,
 		AccountID:      acc.ID,
 		Account:        &acc,
 		PriceAmount:    priceAmount,
@@ -93,7 +93,7 @@ func CheckIfExpired(payment *model.Payment, balance *big.Int) {
 	if balance == nil {
 		balance = big.NewInt(0).Add(&payment.CurrentPaymentState.AmountReceived.Int, &payment.Account.Remainder.Int)
 	}
-	index := slices.IndexFunc(payment.PaymentStates, func(ps model.PaymentState) bool { return ps.StatusName == enum.Waiting.String() })
+	index := slices.IndexFunc(payment.PaymentStates, func(ps model.PaymentState) bool { return ps.StatusName == enum.Waiting })
 	if payment.PaymentStates[index].CreatedAt.Add(15 * time.Minute).Before(time.Now()) {
 		expire(payment, balance)
 	}

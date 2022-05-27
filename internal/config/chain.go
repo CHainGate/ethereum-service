@@ -39,7 +39,7 @@ func createClient(connectionURI string) (*ethclient.Client, error) {
 	if err != nil {
 		log.Fatal(err)
 	} else {
-		fmt.Printf("Connection works with %s", connectionURI)
+		fmt.Printf("Connection works with %s ", connectionURI)
 	}
 	return client, err
 }

@@ -53,9 +53,9 @@ func checkAllAddresses() {
 	payments := repository.Payment.GetAllPayments()
 	for _, s := range payments {
 		switch s.Mode {
-		case "main":
+		case enum.Main:
 			go controller.CheckBalanceStartup(config.ClientMain, &s)
-		case "test":
+		case enum.Test:
 			go controller.CheckBalanceStartup(config.ClientTest, &s)
 		default:
 			log.Fatal("Mode not supported!")
@@ -114,9 +114,9 @@ func getAllUnfinishedPayments() {
 	unfinishedPayments := repository.Payment.GetAllUnfinishedPayments()
 	for _, s := range unfinishedPayments {
 		switch s.Mode {
-		case "main":
+		case enum.Main:
 			go controller.HandleUnfinished(config.ClientMain, &s)
-		case "test":
+		case enum.Test:
 			go controller.HandleUnfinished(config.ClientTest, &s)
 		default:
 			log.Fatal("Mode not supported!")
