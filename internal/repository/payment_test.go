@@ -29,10 +29,10 @@ func TestCreatePayment(t *testing.T) {
 	}
 }
 
-func TestGetAllPaymentIntents(t *testing.T) {
+func TestGetAllPayments(t *testing.T) {
 	mock, repo := NewPaymentMock()
-	mock = testutils.SetupAllPaymentIntents(mock)
-	repo.GetAllPaymentIntents()
+	mock = testutils.SetupAllPayments(mock)
+	repo.GetAllPayments()
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}

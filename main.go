@@ -50,8 +50,8 @@ func cronHandler() {
 }
 
 func checkAllAddresses() {
-	paymentIntents := repository.Payment.GetAllPaymentIntents()
-	for _, s := range paymentIntents {
+	payments := repository.Payment.GetAllPayments()
+	for _, s := range payments {
 		switch s.Mode {
 		case "main":
 			go controller.CheckBalanceStartup(config.ClientMain, &s)
@@ -64,8 +64,8 @@ func checkAllAddresses() {
 }
 
 func checkConfirming(client *ethclient.Client, currentBlockNr uint64, mode enum.Mode) {
-	paymentIntents := repository.Payment.GetAllConfirmingPayments(mode)
-	for _, p := range paymentIntents {
+	payments := repository.Payment.GetAllConfirmingPayments(mode)
+	for _, p := range payments {
 		// This could be maybe done via SQL query
 		log.Printf("blocknr: %v", p.ReceivingBlockNr)
 		log.Printf("currentBlockNr: %v", currentBlockNr)
@@ -94,7 +94,7 @@ func listenToEthChain(client *ethclient.Client, mode enum.Mode) {
 				log.Fatal(err)
 			}
 
-			payments := repository.Payment.GetModePaymentIntents(mode)
+			payments := repository.Payment.GetModePayments(mode)
 			for _, p := range payments {
 				for _, tx := range block.Transactions() {
 					if tx.To() != nil && tx.To().Hex() == p.Account.Address {
@@ -134,6 +134,5 @@ func InitializeRouter() *mux.Router {
 	sh := http.StripPrefix("/api/swaggerui/", http.FileServer(http.Dir("./swaggerui/")))
 	router.PathPrefix("/api/swaggerui/").Handler(sh)
 
-	//router.HandleFunc("/payment-intent", paymentIntent).Methods("POST", "OPTIONS")
 	return router
 }

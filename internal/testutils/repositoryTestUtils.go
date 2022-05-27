@@ -212,7 +212,7 @@ func SetupCreatePaymentWithoutIdCheck(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 	return mock
 }
 
-func SetupAllPaymentIntents(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
+func SetupAllPayments(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 	wp := GetWaitingPayment()
 	ma := GetMerchantAcc()
 	ca := GetChaingateAcc()

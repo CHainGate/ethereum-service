@@ -23,9 +23,9 @@ type Base struct {
 type IPaymentRepository interface {
 	UpdatePaymentState(payment *Payment)
 	CreatePayment(payment *Payment, finalPaymentAmount *big.Int) (*Payment, error)
-	GetAllPaymentIntents() []Payment
-	GetModePaymentIntents(mode enum.Mode) []Payment
-	GetPaymentIntentByAddress(address *common.Address) (*gorm.DB, Payment)
+	GetAllPayments() []Payment
+	GetModePayments(mode enum.Mode) []Payment
+	GetPaymentsByAddress(address *common.Address) (*gorm.DB, Payment)
 	GetAllUnfinishedPayments() []Payment
 	GetAllConfirmingPayments(mode enum.Mode) []Payment
 }

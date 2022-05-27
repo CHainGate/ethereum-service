@@ -36,7 +36,7 @@ func (r *PaymentRepository) CreatePayment(payment *model.Payment, finalPaymentAm
 	return payment, nil
 }
 
-func (r *PaymentRepository) GetAllPaymentIntents() []model.Payment {
+func (r *PaymentRepository) GetAllPayments() []model.Payment {
 	var payments []model.Payment
 	r.DB.
 		Preload("Account").
@@ -48,7 +48,7 @@ func (r *PaymentRepository) GetAllPaymentIntents() []model.Payment {
 	return payments
 }
 
-func (r *PaymentRepository) GetModePaymentIntents(mode enum.Mode) []model.Payment {
+func (r *PaymentRepository) GetModePayments(mode enum.Mode) []model.Payment {
 	var payments []model.Payment
 	r.DB.
 		Preload("Account").
@@ -61,7 +61,7 @@ func (r *PaymentRepository) GetModePaymentIntents(mode enum.Mode) []model.Paymen
 	return payments
 }
 
-func (r *PaymentRepository) GetPaymentIntentByAddress(address *common.Address) (*gorm.DB, model.Payment) {
+func (r *PaymentRepository) GetPaymentsByAddress(address *common.Address) (*gorm.DB, model.Payment) {
 	var payment model.Payment
 	result := r.DB.Debug().
 		Preload("Account").

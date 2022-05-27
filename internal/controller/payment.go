@@ -108,7 +108,7 @@ func CheckBalanceNotify(payment *model.Payment, txValue *big.Int, blockNr uint64
 		if updateState(payment, balance, enum.Paid) != nil {
 			return
 		}
-	} else if payment.IsNewlyPartlyPaid(balance) {
+	} else {
 		updateState(payment, balance, enum.PartiallyPaid)
 		log.Printf("PAYMENT partly paid")
 		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
