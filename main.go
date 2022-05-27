@@ -54,10 +54,10 @@ func checkConfirming(client *ethclient.Client, currentBlockNr uint64, mode enum.
 	payments := repository.Payment.GetAllConfirming(mode)
 	for _, p := range payments {
 		// This could be maybe done via SQL query
-		log.Printf("blocknr: %v", p.ReceivingBlockNr)
+		log.Printf("blocknr: %v", p.LastReceivingBlockNr)
 		log.Printf("currentBlockNr: %v", currentBlockNr)
-		log.Printf("isittrue: %v", p.ReceivingBlockNr == 0 || currentBlockNr > p.ReceivingBlockNr+6)
-		if p.ReceivingBlockNr == 0 || currentBlockNr >= p.ReceivingBlockNr+6 {
+		log.Printf("isittrue: %v", p.LastReceivingBlockNr == 0 || currentBlockNr > p.LastReceivingBlockNr+6)
+		if p.LastReceivingBlockNr == 0 || currentBlockNr >= p.LastReceivingBlockNr+6 {
 			p.ForwardingBlockNr = currentBlockNr
 			go controller.HandleConfirming(client, &p)
 		}
@@ -85,7 +85,7 @@ func listenToEthChain(client *ethclient.Client, mode enum.Mode) {
 			for _, p := range payments {
 				for _, tx := range block.Transactions() {
 					if tx.To() != nil && tx.To().Hex() == p.Account.Address {
-						controller.CheckBalanceNotify(&p, tx.Value(), block.Number().Uint64())
+						controller.CheckBalanceNotify(&p, tx.Value(), block.Number().Uint64(), block.Hash())
 					}
 				}
 

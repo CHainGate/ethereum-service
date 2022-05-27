@@ -8,6 +8,7 @@ import (
 	"ethereum-service/model"
 	"ethereum-service/utils"
 	"fmt"
+	"github.com/ethereum/go-ethereum"
 	"golang.org/x/exp/slices"
 	"log"
 	"math/big"
@@ -99,12 +100,13 @@ func CheckIfExpired(payment *model.Payment, balance *big.Int) {
 	}
 }
 
-func CheckBalanceNotify(payment *model.Payment, txValue *big.Int, blockNr uint64) {
+func CheckBalanceNotify(payment *model.Payment, txValue *big.Int, blockNr uint64, txHash common.Hash) {
 	balance := big.NewInt(0).Add(&payment.CurrentPaymentState.AmountReceived.Int, txValue)
 	if payment.IsPaid(balance) {
 		log.Printf("PAYMENT REACHED!!!!")
 		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
-		payment.ReceivingBlockNr = blockNr
+		payment.LastReceivingBlockNr = blockNr
+		payment.LastReceivingTransactionHash = txHash.String()
 		if updateState(payment, balance, enum.Paid) != nil {
 			return
 		}
@@ -140,40 +142,51 @@ func CheckBalanceStartup(client *ethclient.Client, payment *model.Payment) {
 	}
 }
 
-func HandleUnfinished(client *ethclient.Client, payment *model.Payment) {
-
-}
-
 /*
 	Theoretically the best way to check it is, that you check the transaction receipt. Because the user can pay multiple times we would need to check multiple txs.
     Because there is no limit and the user could spam us with a lot of txs and we would run out of API-calls to infura.
     Therefore, it simply checks the balance after 6 blocks if it is still reached.
 */
 func IsConfirmed(client *ethclient.Client, p *model.Payment) (bool, error) {
-	balance, err := GetBalanceAt(client, common.HexToAddress(p.Account.Address))
+	block, err := client.BlockByHash(context.Background(), common.HexToHash(p.LastReceivingTransactionHash))
 	if err != nil {
 		return false, err
 	}
-	return p.IsPaid(balance), nil
+	if err == ethereum.NotFound {
+		return false, nil
+	}
+	return block != nil, nil
+}
+
+func confirm(client *ethclient.Client, payment *model.Payment) *types.Transaction {
+	if updateState(payment, nil, enum.Confirmed) != nil {
+		return nil
+	}
+	tx := forward(client, payment)
+	if updateState(payment, nil, enum.Forwarded) != nil {
+		return nil
+	}
+	checkForwardEarnings(client, payment.Account)
+	cleanUp(payment)
+	return tx
 }
 
 func HandleConfirming(client *ethclient.Client, payment *model.Payment) *types.Transaction {
-	isConfirmed, err := IsConfirmed(client, payment)
+	var isConfirmed bool
+	var err error
+	// When no Tx hash is set do no confirming. This can happen when the service does a recovery and only check the open balances
+	if payment.LastReceivingTransactionHash == "" {
+		isConfirmed = true
+	} else {
+		isConfirmed, err = IsConfirmed(client, payment)
+	}
+
 	if isConfirmed {
-		if updateState(payment, nil, enum.Confirmed) != nil {
-			return nil
-		}
-		tx := forward(client, payment)
-		if updateState(payment, nil, enum.Forwarded) != nil {
-			return nil
-		}
-		checkForwardEarnings(client, payment.Account)
-		cleanUp(payment)
-		return tx
+		return confirm(client, payment)
 	} else if err != nil {
 		log.Printf("Error in getting balance. Acc Address: %v. Try again next confirming round", payment.Account.Address)
 	} else {
-		log.Printf("Balance not enough anymore. Potential reverted Tx. Checkout blockNr: %v, Acc Address: %v", payment.ReceivingBlockNr, payment.Account.Address)
+		log.Printf("Block doesn't exist anymore. Potential reverted Tx. Checkout blockNr: %v, Acc Address: %v", payment.LastReceivingBlockNr, payment.Account.Address)
 		finalBalanceOnChaingateWallet, err := GetBalanceAt(client, common.HexToAddress(payment.Account.Address))
 		if err != nil {
 			log.Printf("Error in getting balance in final recovery. Acc Address: %v", payment.Account.Address)

@@ -30,18 +30,19 @@ type IPaymentRepository interface {
 
 type Payment struct {
 	Base
-	Account                   *Account
-	AccountID                 uuid.UUID `gorm:"type:uuid"`
-	MerchantWallet            string
-	Mode                      enum.Mode
-	PriceAmount               float64 `gorm:"type:numeric(30,15);default:0"`
-	PriceCurrency             string
-	CurrentPaymentStateId     *uuid.UUID     `gorm:"type:uuid"`
-	CurrentPaymentState       PaymentState   `gorm:"foreignKey:CurrentPaymentStateId"`
-	PaymentStates             []PaymentState `gorm:"<-:false"`
-	ForwardingTransactionHash string
-	ReceivingBlockNr          uint64
-	ForwardingBlockNr         uint64
+	Account                      *Account
+	AccountID                    uuid.UUID `gorm:"type:uuid"`
+	MerchantWallet               string
+	Mode                         enum.Mode
+	PriceAmount                  float64 `gorm:"type:numeric(30,15);default:0"`
+	PriceCurrency                string
+	CurrentPaymentStateId        *uuid.UUID     `gorm:"type:uuid"`
+	CurrentPaymentState          PaymentState   `gorm:"foreignKey:CurrentPaymentStateId"`
+	PaymentStates                []PaymentState `gorm:"<-:false"`
+	LastReceivingBlockNr         uint64
+	LastReceivingTransactionHash string
+	ForwardingBlockNr            uint64
+	ForwardingTransactionHash    string
 }
 
 func (p *Payment) GetActiveAmount() *big.Int {
