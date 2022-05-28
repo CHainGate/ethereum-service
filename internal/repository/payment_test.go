@@ -32,7 +32,7 @@ func TestCreatePayment(t *testing.T) {
 func TestGetAllPayments(t *testing.T) {
 	mock, repo := NewPaymentMock()
 	mock = testutils.SetupAllPayments(mock)
-	repo.GetAll()
+	repo.GetAllOpen()
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}

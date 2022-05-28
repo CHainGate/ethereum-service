@@ -154,7 +154,7 @@ func GetFinishedPayment() model.Payment {
 
 func getPaymentRow(p model.Payment) *sqlmock.Rows {
 	return sqlmock.NewRows([]string{"id", "merchant_wallet", "mode", "price_amount", "price_currency", "current_payment_state_id", "forwarding_transaction_hash", "receiving_block_nr", "forwarding_block_nr"}).
-		AddRow(p.ID, GetMerchantAcc().Address, 1, "100", "USD", p.CurrentPaymentStateId, p.ForwardingTransactionHash, p.ReceivingBlockNr, p.ForwardingBlockNr)
+		AddRow(p.ID, GetMerchantAcc().Address, 1, "100", "USD", p.CurrentPaymentStateId, p.ForwardingTransactionHash, p.LastReceivingBlockNr, p.ForwardingBlockNr)
 }
 
 func getAccountRow(a model.Account) *sqlmock.Rows {

@@ -37,7 +37,7 @@ func main() {
    Recovery
 */
 func checkAllAddresses() {
-	payments := repository.Payment.GetAll()
+	payments := repository.Payment.GetAllOpen()
 	for _, s := range payments {
 		switch s.Mode {
 		case enum.Main:
