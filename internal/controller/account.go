@@ -15,17 +15,17 @@ func GetAccount(mode enum.Mode) (model.Account, error) {
 }
 
 func getFreeAccount(mode enum.Mode) (model.Account, error) {
-	result, acc := repository.Account.GetFreeAccount(mode)
+	result, acc := repository.Account.GetFree(mode)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			acc = model.CreateAccount(mode)
-			repository.Account.CreateAccount(acc)
+			repository.Account.Create(acc)
 		} else {
 			return model.Account{}, result.Error
 		}
 	} else {
 		acc.Used = true
-		err := repository.Account.UpdateAccount(acc)
+		err := repository.Account.Update(acc)
 		if err != nil {
 			return model.Account{}, result.Error
 		}

@@ -21,23 +21,28 @@ type Base struct {
 
 type IPaymentRepository interface {
 	UpdatePaymentState(payment *Payment)
-	CreatePayment(payment *Payment, finalPaymentAmount *big.Int) (*Payment, error)
-	GetAllPaymentIntents() []Payment
-	GetAllUnfinishedPayments() []Payment
+	Create(payment *Payment, finalPaymentAmount *big.Int) (*Payment, error)
+	GetAll() []Payment
+	GetByMode(mode enum.Mode) []Payment
+	GetAllUnfinished() []Payment
+	GetAllConfirming(mode enum.Mode) []Payment
 }
 
 type Payment struct {
 	Base
-	Account        *Account
-	AccountID      uuid.UUID `gorm:"type:uuid"`
-	MerchantWallet string
-	Mode           string
-	//TODO: change to float64
-	PriceAmount           float64 `gorm:"type:numeric(30,15);default:0"`
-	PriceCurrency         string
-	CurrentPaymentStateId *uuid.UUID     `gorm:"type:uuid"`
-	CurrentPaymentState   PaymentState   `gorm:"foreignKey:CurrentPaymentStateId"`
-	PaymentStates         []PaymentState `gorm:"<-:false"`
+	Account                      *Account
+	AccountID                    uuid.UUID `gorm:"type:uuid"`
+	MerchantWallet               string
+	Mode                         enum.Mode
+	PriceAmount                  float64 `gorm:"type:numeric(30,15);default:0"`
+	PriceCurrency                string
+	CurrentPaymentStateId        *uuid.UUID     `gorm:"type:uuid"`
+	CurrentPaymentState          PaymentState   `gorm:"foreignKey:CurrentPaymentStateId"`
+	PaymentStates                []PaymentState `gorm:"<-:false"`
+	LastReceivingBlockNr         uint64
+	LastReceivingTransactionHash string
+	ForwardingBlockNr            uint64
+	ForwardingTransactionHash    string
 }
 
 func (p *Payment) GetActiveAmount() *big.Int {
@@ -53,7 +58,7 @@ func (p *Payment) UpdatePaymentState(newState enum.State, balance *big.Int) Paym
 		balance = &p.CurrentPaymentState.AmountReceived.Int
 	}
 	state := PaymentState{
-		StatusName:     newState.String(),
+		StatusName:     newState,
 		AccountID:      p.AccountID,
 		AmountReceived: NewBigInt(balance),
 		PayAmount:      p.CurrentPaymentState.PayAmount,
@@ -73,10 +78,14 @@ func (p *Payment) IsPaid(balance *big.Int) bool {
 	return balance.Cmp(p.GetActiveAmount()) >= 0
 }
 
+func (p *Payment) IsConfirming() bool {
+	return p.CurrentPaymentState.StatusName == enum.Paid
+}
+
 /*
 	Adds a paymentstatus to the payment and also sets the new as the current one.
 */
-func (p *Payment) AddNewPaymentState(newState string, balance *big.Int, payAmount *big.Int) PaymentState {
+func (p *Payment) AddNewPaymentState(newState enum.State, balance *big.Int, payAmount *big.Int) PaymentState {
 	state := PaymentState{
 		StatusName:     newState,
 		AccountID:      p.AccountID,
@@ -94,16 +103,16 @@ type PaymentState struct {
 	AccountID      uuid.UUID `gorm:"type:uuid;"`
 	PayAmount      *BigInt   `gorm:"type:numeric(30);default:0"`
 	AmountReceived *BigInt   `gorm:"type:numeric(30);default:0"`
-	StatusName     string
+	StatusName     enum.State
 	PaymentID      uuid.UUID `gorm:"type:uuid"`
 }
 
 func (ps *PaymentState) IsWaitingForPayment() bool {
-	return ps.StatusName == "partially_paid" || ps.StatusName == "waiting"
+	return ps.StatusName == enum.PartiallyPaid || ps.StatusName == enum.Waiting
 }
 
 func (ps *PaymentState) IsPaid() bool {
-	return ps.StatusName == "paid"
+	return ps.StatusName == enum.Paid
 }
 
 type BigInt struct {

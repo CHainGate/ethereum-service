@@ -21,13 +21,13 @@ type Account struct {
 	Used       bool
 	Payments   []Payment
 	Remainder  *BigInt `gorm:"type:numeric(30);default:0"`
-	Mode       string  `gorm:"type:varchar"`
+	Mode       enum.Mode
 }
 
 type IAccountRepository interface {
-	GetFreeAccount(mode enum.Mode) (*gorm.DB, *Account)
-	CreateAccount(acc *Account) *Account
-	UpdateAccount(acc *Account) error
+	GetFree(mode enum.Mode) (*gorm.DB, *Account)
+	Create(acc *Account) *Account
+	Update(acc *Account) error
 }
 
 func CreateAccount(mode enum.Mode) *Account {
@@ -50,7 +50,7 @@ func CreateAccount(mode enum.Mode) *Account {
 	account.Remainder = NewBigInt(big.NewInt(0))
 
 	account.Used = true
-	account.Mode = mode.String()
+	account.Mode = mode
 
 	return &account
 }

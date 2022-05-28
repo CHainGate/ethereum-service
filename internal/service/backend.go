@@ -12,7 +12,7 @@ import (
 )
 
 func SendState(paymentId uuid.UUID, state model.PaymentState) error {
-	paymentUpdateDto := *backendClientApi.NewPaymentUpdateDto(paymentId.String(), state.PayAmount.String(), "ETH", state.AmountReceived.String(), state.StatusName) // PaymentUpdateDto |  (optional)
+	paymentUpdateDto := *backendClientApi.NewPaymentUpdateDto(paymentId.String(), state.PayAmount.String(), "ETH", state.AmountReceived.String(), state.StatusName.String()) // PaymentUpdateDto |  (optional)
 
 	configuration := backendClientApi.NewConfiguration()
 	configuration.Servers[0].URL = config.Opts.BackendBaseUrl
