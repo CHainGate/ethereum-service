@@ -184,7 +184,7 @@ func SetupCreatePayment(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, wp.CurrentPaymentState.PayAmount, "0", enum.Waiting, sqlmock.AnyArg()).
 		WillReturnRows(stateRows)
 	mock.ExpectQuery("INSERT INTO \"payments\"").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, ma.Address, ep.Mode, ep.PriceAmount, ep.PriceCurrency, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, ma.Address, ep.Mode, ep.PriceAmount, ep.PriceCurrency, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnRows(paymentRows)
 	mock.ExpectCommit()
 	return mock
@@ -206,7 +206,7 @@ func SetupCreatePaymentWithoutIdCheck(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, wp.CurrentPaymentState.PayAmount, "0", enum.Waiting, sqlmock.AnyArg()).
 		WillReturnRows(stateRows)
 	mock.ExpectQuery("INSERT INTO \"payments\"").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, sqlmock.AnyArg(), ep.Mode, ep.PriceAmount, ep.PriceCurrency, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, sqlmock.AnyArg(), ep.Mode, ep.PriceAmount, ep.PriceCurrency, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnRows(paymentRows)
 	mock.ExpectCommit()
 	return mock
@@ -223,7 +223,7 @@ func SetupAllPayments(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 			wp.CurrentPaymentStateId, time.Now(), time.Now(), time.Now(), ca.ID, wp.CurrentPaymentState.PayAmount, wp.CurrentPaymentState.AmountReceived, wp.CurrentPaymentState.StatusName, wp.ID)
 
 	mock.ExpectQuery("SELECT (.+) FROM \"payments\"").
-		WithArgs("waiting", "partially_paid").
+		WithArgs(enum.Waiting, enum.PartiallyPaid).
 		WillReturnRows(paymentRows)
 
 	accRows := getAccountRow(ca)
@@ -254,7 +254,7 @@ func SetupUpdatePaymentState(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.CurrentPaymentState.PayAmount, pp.CurrentPaymentState.AmountReceived, pp.CurrentPaymentState.StatusName, sqlmock.AnyArg()).
 		WillReturnRows(stateRows)
 	mock.ExpectExec("UPDATE").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.MerchantWallet, pp.Mode, pp.PriceAmount, pp.PriceCurrency, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.MerchantWallet, pp.Mode, pp.PriceAmount, pp.PriceCurrency, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
@@ -295,7 +295,7 @@ func mockRequests(mock sqlmock.Sqlmock, amountPaid *big.Int, ca model.Account, a
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.CurrentPaymentState.PayAmount, model.NewBigInt(amountPaid), pp.CurrentPaymentState.StatusName, sqlmock.AnyArg()).
 		WillReturnRows(stateRows)
 	mock.ExpectExec("UPDATE").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.MerchantWallet, pp.Mode, pp.PriceAmount, pp.PriceCurrency, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.MerchantWallet, pp.Mode, pp.PriceAmount, pp.PriceCurrency, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 }
