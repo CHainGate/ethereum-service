@@ -35,7 +35,7 @@ func (r *PaymentRepository) Create(payment *model.Payment, finalPaymentAmount *b
 	return payment, nil
 }
 
-func (r *PaymentRepository) GetAll() []model.Payment {
+func (r *PaymentRepository) GetAllOpen() []model.Payment {
 	var payments []model.Payment
 	r.DB.
 		Preload("Account").
@@ -56,17 +56,6 @@ func (r *PaymentRepository) GetByMode(mode enum.Mode) []model.Payment {
 		Preload("PaymentStates").
 		Joins("CurrentPaymentState").
 		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []enum.State{enum.Waiting, enum.PartiallyPaid}).
-		Find(&payments)
-	return payments
-}
-
-func (r *PaymentRepository) GetAllUnfinished() []model.Payment {
-	var payments []model.Payment
-	r.DB.
-		Preload("Account").
-		Preload("CurrentPaymentState").
-		Joins("CurrentPaymentState").
-		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []enum.State{enum.Confirmed, enum.Forwarded}).
 		Find(&payments)
 	return payments
 }

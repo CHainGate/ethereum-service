@@ -22,9 +22,8 @@ type Base struct {
 type IPaymentRepository interface {
 	UpdatePaymentState(payment *Payment)
 	Create(payment *Payment, finalPaymentAmount *big.Int) (*Payment, error)
-	GetAll() []Payment
+	GetAllOpen() []Payment
 	GetByMode(mode enum.Mode) []Payment
-	GetAllUnfinished() []Payment
 	GetAllConfirming(mode enum.Mode) []Payment
 }
 
