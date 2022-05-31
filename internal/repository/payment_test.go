@@ -38,6 +38,24 @@ func TestGetAllPayments(t *testing.T) {
 	}
 }
 
+func TestGetConfirming(t *testing.T) {
+	mock, repo := NewPaymentMock()
+	mock = testutils.SetupModePayments(mock, enum.Main, enum.Paid)
+	repo.GetConfirming(enum.Main)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestGetFinishing(t *testing.T) {
+	mock, repo := NewPaymentMock()
+	mock = testutils.SetupModePayments(mock, enum.Main, enum.Forwarded)
+	repo.GetFinishing(enum.Main)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}
+
 func TestUpdatePaymentState(t *testing.T) {
 	mock, repo := NewPaymentMock()
 	mock = testutils.SetupUpdatePaymentState(mock)

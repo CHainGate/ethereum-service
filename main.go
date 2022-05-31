@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"ethereum-service/database"
+	"ethereum-service/internal/bc"
 	"ethereum-service/internal/config"
 	"ethereum-service/internal/controller"
 	repository "ethereum-service/internal/repository"
 	"ethereum-service/openApi"
 	"ethereum-service/services"
-	"ethereum-service/utils"
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/gorilla/mux"
@@ -39,14 +39,14 @@ func main() {
 func checkAllAddresses() {
 	payments := repository.Payment.GetAllOpen()
 	for _, s := range payments {
-		client := utils.GetClientByMode(s.Mode)
+		client := bc.GetClientByMode(s.Mode)
 		go controller.CheckBalanceStartup(client, &s)
 	}
 }
 
 func listenToEthChain(mode enum.Mode) {
 	headers := make(chan *types.Header)
-	client := utils.GetClientByMode(mode)
+	client := bc.GetClientByMode(mode)
 	sub, err := client.SubscribeNewHead(context.Background(), headers)
 	if err != nil {
 		log.Fatal(err)
@@ -62,13 +62,14 @@ func listenToEthChain(mode enum.Mode) {
 				log.Printf("Error in getting BlockByHash %v", err)
 			} else {
 				payments := repository.Payment.GetOpenByMode(mode)
+				hash := block.Hash()
 				for _, p := range payments {
 					for _, tx := range block.Transactions() {
 						if tx.To() != nil && tx.To().Hex() == p.Account.Address {
-							controller.CheckBalanceNotify(&p, tx.Value(), block.Number(), block.Hash())
+							controller.CheckBalanceNotify(&p, tx.Value(), block.Number(), &hash)
 						}
 					}
-					controller.CheckPayment(&p, block.Number(), block.Hash())
+					controller.CheckPayment(&p, block.Number(), &hash, nil)
 
 				}
 
