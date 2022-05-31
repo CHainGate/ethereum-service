@@ -28,13 +28,15 @@ var (
 
 func createEmptyPayment(acc model.Account, mAcc model.Account) *model.Payment {
 	return &model.Payment{
-		Account:        &acc,
-		Mode:           enum.Main,
-		Base:           model.Base{ID: uuid.New()},
-		AccountID:      acc.ID,
-		PriceAmount:    100,
-		PriceCurrency:  "USD",
-		MerchantWallet: mAcc.Address,
+		Account:              &acc,
+		Mode:                 enum.Main,
+		Base:                 model.Base{ID: uuid.New()},
+		AccountID:            acc.ID,
+		PriceAmount:          100,
+		PriceCurrency:        "USD",
+		ForwardingBlockNr:    model.NewBigIntFromInt(0),
+		LastReceivingBlockNr: model.NewBigIntFromInt(0),
+		MerchantWallet:       mAcc.Address,
 	}
 }
 
@@ -234,6 +236,11 @@ func SetupAllPayments(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 	stateRows := getPaymentStatesRow(ca, wp)
 	mock.ExpectQuery("SELECT (.+) FROM \"payment_states\"").
 		WithArgs(wp.CurrentPaymentStateId).
+		WillReturnRows(stateRows)
+
+	stateRows = getPaymentStatesRow(ca, wp)
+	mock.ExpectQuery("SELECT (.+) FROM \"payment_states\"").
+		WithArgs(wp.ID).
 		WillReturnRows(stateRows)
 
 	return mock

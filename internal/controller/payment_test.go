@@ -431,6 +431,10 @@ func TestCheckBalanceCronPaidAndConfirmed(t *testing.T) {
 		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.Paid.String())
 	}
 	HandleConfirming(client, &p)
+	if p.CurrentPaymentState.StatusName != enum.Forwarded {
+		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.Forwarded.String())
+	}
+	finish(&p)
 	if p.CurrentPaymentState.StatusName != enum.Finished {
 		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.Finished.String())
 	}
@@ -479,6 +483,10 @@ func TestCheckForwardEarnings(t *testing.T) {
 	}
 	CheckBalanceStartup(client, &p)
 	HandleConfirming(client, &p)
+	if p.CurrentPaymentState.StatusName != enum.Forwarded {
+		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.Forwarded.String())
+	}
+	finish(&p)
 	if p.CurrentPaymentState.StatusName != enum.Finished {
 		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.Finished.String())
 	}
