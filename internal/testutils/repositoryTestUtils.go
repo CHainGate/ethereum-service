@@ -228,7 +228,7 @@ func SetupCreatePaymentWithoutIdCheck(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 	return mock
 }
 
-func SetupAllPayments(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
+func SetupAllPayments(mock sqlmock.Sqlmock, modes ...enum.Mode) sqlmock.Sqlmock {
 	wp := GetWaitingPayment()
 	ma := GetMerchantAcc()
 	ca := GetChaingateAcc()
@@ -238,9 +238,15 @@ func SetupAllPayments(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 		AddRow(wp.ID, time.Now(), time.Now(), time.Now(), ca.ID, ma.Address, wp.Mode, wp.PriceAmount, wp.PriceCurrency, wp.CurrentPaymentStateId,
 			wp.CurrentPaymentStateId, time.Now(), time.Now(), time.Now(), ca.ID, wp.CurrentPaymentState.PayAmount, wp.CurrentPaymentState.AmountReceived, wp.CurrentPaymentState.StatusName, wp.ID)
 
-	mock.ExpectQuery("SELECT (.+) FROM \"payments\"").
-		WithArgs(enum.Waiting, enum.PartiallyPaid).
-		WillReturnRows(paymentRows)
+	if len(modes) > 0 {
+		mock.ExpectQuery("SELECT (.+) FROM \"payments\"").
+			WithArgs(modes[0], enum.Waiting, enum.PartiallyPaid).
+			WillReturnRows(paymentRows)
+	} else {
+		mock.ExpectQuery("SELECT (.+) FROM \"payments\"").
+			WithArgs(enum.Waiting, enum.PartiallyPaid).
+			WillReturnRows(paymentRows)
+	}
 
 	accRows := getAccountRow(ca)
 	mock.ExpectQuery("SELECT (.+) FROM \"accounts\"").

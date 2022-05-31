@@ -108,7 +108,7 @@ func GetClientByMode(mode enum.Mode) *ethclient.Client {
 	var client *ethclient.Client
 	switch mode {
 	case enum.Main:
-		client = config.ClientTest
+		client = config.ClientMain
 	case enum.Test:
 		client = config.ClientTest
 	}

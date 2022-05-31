@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"math/big"
+	"strings"
 	"testing"
 )
 
@@ -19,6 +20,48 @@ func TestSingleForward(t *testing.T) {
 	genesisAcc, client := testutils.CustomChainSetup(t)
 	chaingateAcc, payAmount := SetupFirstPayment(t, client, genesisAcc)
 	CreateForward(t, client, chaingateAcc, payAmount, 1)
+}
+
+// https://rpc.info/
+func TestGetClientByMode(t *testing.T) {
+	config.CreateMainClientConnection("https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161")
+	config.CreateTestClientConnection("https://rinkeby.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161")
+	client := GetClientByMode(enum.Main)
+	testClient := GetClientByMode(enum.Test)
+	networkId, err := client.NetworkID(context.Background())
+	if err != nil {
+		t.Fatalf("Unable to get networkID %v", err)
+	}
+	if networkId.Cmp(big.NewInt(1)) != 0 {
+		t.Fatalf(`It isn't mainnet it is' %v, should be %v`, networkId, 1)
+	}
+	networkIdTest, err := testClient.NetworkID(context.Background())
+	if err != nil {
+		t.Fatalf("Unable to get networkID %v", err)
+	}
+	if networkIdTest.Cmp(big.NewInt(4)) != 0 {
+		t.Fatalf(`It isn't mainnet it is' %v, should be %v`, networkIdTest, 4)
+	}
+}
+
+func TestCheckForwardEarnings(t *testing.T) {
+	config.ReadOpts()
+	p := testutils.GetForwardedPayment()
+	overpayAmount := big.NewInt(0).Mul(&p.CurrentPaymentState.PayAmount.Int, big.NewInt(1000))
+	genesisAcc, client := testutils.CustomChainSetup(t)
+	txInitial := testutils.CreateInitialPayment(client, genesisAcc, overpayAmount, p.Account.Address)
+	_, err := bind.WaitMined(context.Background(), client, txInitial)
+	if err != nil {
+		t.Fatalf("Can't wait until transaction is mined %v", err)
+	}
+	p.Account.Remainder = model.NewBigInt(overpayAmount)
+	check, tx := CheckForwardEarnings(client, p.Account)
+	if !check {
+		t.Fatalf("Money should be forwarded, but function says no")
+	}
+	if strings.ToLower(tx.To().Hex()) != strings.ToLower(config.Opts.TargetWallet) {
+		t.Fatalf("Function was sent to: %v , but should be sent to: %v", strings.ToLower(tx.To().Hex()), strings.ToLower(config.Opts.TargetWallet))
+	}
 }
 
 func TestWalletReusage(t *testing.T) {
