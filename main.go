@@ -8,9 +8,9 @@ import (
 	repository "ethereum-service/internal/repository"
 	"ethereum-service/openApi"
 	"ethereum-service/services"
+	"ethereum-service/utils"
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -27,8 +27,8 @@ func main() {
 
 	checkAllAddresses()
 
-	go listenToEthChain(config.ClientMain, enum.Main)
-	go listenToEthChain(config.ClientTest, enum.Test)
+	go listenToEthChain(enum.Main)
+	go listenToEthChain(enum.Test)
 	log.Printf("listing on port %v", 9000)
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(9000), router))
 }
@@ -39,33 +39,14 @@ func main() {
 func checkAllAddresses() {
 	payments := repository.Payment.GetAllOpen()
 	for _, s := range payments {
-		switch s.Mode {
-		case enum.Main:
-			go controller.CheckBalanceStartup(config.ClientMain, &s)
-		case enum.Test:
-			go controller.CheckBalanceStartup(config.ClientTest, &s)
-		default:
-			log.Fatal("Mode not supported!")
-		}
+		client := utils.GetClientByMode(s.Mode)
+		go controller.CheckBalanceStartup(client, &s)
 	}
 }
 
-func checkConfirming(client *ethclient.Client, currentBlockNr uint64, mode enum.Mode) {
-	payments := repository.Payment.GetAllConfirming(mode)
-	for _, p := range payments {
-		// This could be maybe done via SQL query
-		log.Printf("blocknr: %v", p.LastReceivingBlockNr)
-		log.Printf("currentBlockNr: %v", currentBlockNr)
-		log.Printf("isittrue: %v", p.LastReceivingBlockNr == 0 || currentBlockNr > p.LastReceivingBlockNr+6)
-		if p.LastReceivingBlockNr == 0 || currentBlockNr >= p.LastReceivingBlockNr+6 {
-			p.ForwardingBlockNr = currentBlockNr
-			go controller.HandleConfirming(client, &p)
-		}
-	}
-}
-
-func listenToEthChain(client *ethclient.Client, mode enum.Mode) {
+func listenToEthChain(mode enum.Mode) {
 	headers := make(chan *types.Header)
+	client := utils.GetClientByMode(mode)
 	sub, err := client.SubscribeNewHead(context.Background(), headers)
 	if err != nil {
 		log.Fatal(err)
@@ -74,25 +55,25 @@ func listenToEthChain(client *ethclient.Client, mode enum.Mode) {
 	for {
 		select {
 		case err := <-sub.Err():
-			log.Fatal(err)
+			log.Fatal("Error in websocket", err)
 		case header := <-headers:
 			block, err := client.BlockByHash(context.Background(), header.Hash())
 			if err != nil {
-				log.Fatal(err)
-			}
-
-			payments := repository.Payment.GetByMode(mode)
-			for _, p := range payments {
-				for _, tx := range block.Transactions() {
-					if tx.To() != nil && tx.To().Hex() == p.Account.Address {
-						controller.CheckBalanceNotify(&p, tx.Value(), block.Number().Uint64(), block.Hash())
+				log.Printf("Error in getting BlockByHash %v", err)
+			} else {
+				payments := repository.Payment.GetOpenByMode(mode)
+				for _, p := range payments {
+					for _, tx := range block.Transactions() {
+						if tx.To() != nil && tx.To().Hex() == p.Account.Address {
+							controller.CheckBalanceNotify(&p, tx.Value(), block.Number(), block.Hash())
+						}
 					}
+					controller.CheckPayment(&p, block.Number(), block.Hash())
+
 				}
 
-				controller.CheckIfExpired(&p, nil)
+				controller.CheckConfirming(client, block.Number(), mode)
 			}
-
-			checkConfirming(client, block.Number().Uint64(), mode)
 		}
 	}
 }

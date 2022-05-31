@@ -70,7 +70,7 @@ func TestEthClientAddressInteraction(t *testing.T) {
 	acc := model.CreateAccount(enum.Main)
 
 	address := common.HexToAddress(acc.Address)
-	balance, err := GetUserBalanceAt(client, address, &acc.Remainder.Int) // nil is latest block
+	balance, err := utils.GetUserBalanceAt(client, address, &acc.Remainder.Int) // nil is latest block
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -227,12 +227,12 @@ func createForward(t *testing.T, client *ethclient.Client, chaingateAcc *model.A
 	p.CurrentPaymentState.PayAmount = model.NewBigInt(payAmount)
 	p.Account = chaingateAcc
 
-	fromBalance, err := GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &p.Account.Remainder.Int)
+	fromBalance, err := utils.GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &p.Account.Remainder.Int)
 	if fromBalance.Cmp(payAmount) != 0 {
 		t.Fatalf(`Balance on generated wallet %v, should be %v`, fromBalance, payAmount)
 	}
 
-	forward(client, &p)
+	utils.Forward(client, &p)
 
 	if p.Account.Used == false {
 		t.Fatalf(`The used wallet is: %v, should be %v`, p.Account.Used, false)
@@ -246,9 +246,9 @@ func createForward(t *testing.T, client *ethclient.Client, chaingateAcc *model.A
 		t.Fatalf(`Balance on generated wallet is: %v, should be %v`, fromBalance, payAmount)
 	}
 
-	toBalance, err := GetUserBalanceAt(client, common.HexToAddress(merchantAcc.Address), &merchantAcc.Remainder.Int)
-	fromUserBalance, err := GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &chaingateAcc.Remainder.Int)
-	fromRealBalance, err := GetBalanceAt(client, common.HexToAddress(chaingateAcc.Address))
+	toBalance, err := utils.GetUserBalanceAt(client, common.HexToAddress(merchantAcc.Address), &merchantAcc.Remainder.Int)
+	fromUserBalance, err := utils.GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &chaingateAcc.Remainder.Int)
+	fromRealBalance, err := utils.GetBalanceAt(client, common.HexToAddress(chaingateAcc.Address))
 	if err != nil {
 		t.Fatalf("Can't get balance %v", err)
 	}
@@ -482,7 +482,7 @@ func TestCheckForwardEarnings(t *testing.T) {
 	if p.CurrentPaymentState.StatusName != enum.Finished {
 		t.Fatalf("Payment is in the wrong state. Payment is \"%v\", but should be \"%v\"", p.CurrentPaymentState.StatusName, enum.Finished.String())
 	}
-	bal, err := GetBalanceAt(client, common.HexToAddress(config.Opts.TargetWallet))
+	bal, err := utils.GetBalanceAt(client, common.HexToAddress(config.Opts.TargetWallet))
 
 	if err != nil {
 		t.Fatalf("Unable to check balance of %v", config.Opts.TargetWallet)

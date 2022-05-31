@@ -1,22 +1,16 @@
 package controller
 
 import (
-	"context"
 	"ethereum-service/internal/config"
 	"ethereum-service/internal/repository"
 	"ethereum-service/internal/service"
 	"ethereum-service/model"
 	"ethereum-service/utils"
 	"fmt"
-	"github.com/ethereum/go-ethereum"
-	"golang.org/x/exp/slices"
+	"github.com/CHainGate/backend/pkg/enum"
 	"log"
 	"math/big"
-	"time"
 
-	"github.com/CHainGate/backend/pkg/enum"
-
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -43,7 +37,7 @@ func CreatePayment(mode enum.Mode, priceAmount float64, priceCurrency string, wa
 
 	val := service.GetETHAmount(payment)
 	final := utils.GetWEIFromETH(val)
-	err = checkIfAmountIsTooLow(mode, final)
+	err = utils.CheckIfAmountIsTooLow(mode, final)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -53,33 +47,116 @@ func CreatePayment(mode enum.Mode, priceAmount float64, priceCurrency string, wa
 	return &payment, final, nil
 }
 
-func checkIfAmountIsTooLow(mode enum.Mode, final *big.Int) error {
-	fees := big.NewInt(0)
-	var client *ethclient.Client
-	switch mode {
-	case enum.Main:
-		client = config.ClientTest
-	case enum.Test:
-		client = config.ClientTest
-	}
-	var gasPrice *big.Int
-	var err error
-	if config.Chain == nil {
-		gasPrice, err = client.SuggestGasPrice(context.Background())
+// CheckPayment
+/*
+  Checks if payment is expired. If it is expired it first checks the balance to make sure it isn't paid.
+  Care for internal transactions.
+*/
+func CheckPayment(payment *model.Payment, blockNr *big.Int, txHash common.Hash) {
+	if utils.CheckIfExpired(payment, nil) {
+		client := utils.GetClientByMode(payment.Mode)
+		balance, err := utils.GetUserBalanceAt(client, common.HexToAddress(payment.Account.Address), &payment.Account.Remainder.Int)
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("Error by getting balance %v", err)
+		}
+		if payment.IsPaid(balance) {
+			Pay(payment, nil, blockNr, txHash)
+		}
+		Expire(payment, nil)
+	}
+}
+
+func CheckBalanceNotify(payment *model.Payment, txValue *big.Int, blockNr *big.Int, blockHash common.Hash) {
+	balance := big.NewInt(0).Add(&payment.CurrentPaymentState.AmountReceived.Int, txValue)
+	if payment.IsPaid(balance) {
+		var paid bool
+		paid, balance = utils.IsPaidOnChain(payment)
+		if paid {
+			Pay(payment, balance, blockNr, blockHash)
+		} else {
+			Fail(payment, balance)
 		}
 	} else {
-		gasPrice = config.Chain.GasPrice
+		updateState(payment, balance, enum.PartiallyPaid)
+		log.Printf("PAYMENT partly paid")
+		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
+	}
+}
+
+func CheckIncomingBlocks(client *ethclient.Client, currentBlockNr *big.Int, mode enum.Mode) {
+	payments := repository.Payment.GetConfirming(mode)
+	for _, p := range payments {
+		hasBlockEnoughConfirmations := big.NewInt(0).Add(&p.LastReceivingBlockNr.Int, big.NewInt(config.Opts.IncomingBlockConfirmations)).Cmp(currentBlockNr) <= 0
+		if p.LastReceivingBlockNr.Cmp(big.NewInt(0)) == 0 || hasBlockEnoughConfirmations {
+			p.ForwardingBlockNr = model.NewBigInt(currentBlockNr)
+			go HandleConfirming(client, &p)
+		}
+	}
+}
+
+func CheckOutgoingTx(client *ethclient.Client, currentBlockNr *big.Int, mode enum.Mode) {
+	payments := repository.Payment.GetFinishing(mode)
+	for _, p := range payments {
+		txHash := common.HexToHash(p.ForwardingTransactionHash)
+		isConfirmed, err := utils.IsTxConfirmed(client, common.HexToHash(p.ForwardingTransactionHash), currentBlockNr)
+		if isConfirmed {
+			finish(&p)
+		} else if err == utils.TxFailed {
+			log.Printf("Potential reverted Tx. Checkout blockNr: %v, Acc Address: %v", txHash, p.Account.Address)
+			finalBalanceOnChaingateWallet, err := utils.GetBalanceAt(client, common.HexToAddress(p.Account.Address))
+			if err != nil {
+				log.Printf("Error in getting balance in final recovery. Acc Address: %v", p.Account.Address)
+			}
+			Fail(&p, finalBalanceOnChaingateWallet)
+		} else if err != nil {
+			log.Printf("Error in confirming tx. Acc Address: %v. Try again next confirming round", p.Account.Address)
+		}
+	}
+}
+
+func CheckConfirming(client *ethclient.Client, currentBlockNr *big.Int, mode enum.Mode) {
+	go CheckIncomingBlocks(client, currentBlockNr, mode)
+	go CheckOutgoingTx(client, currentBlockNr, mode)
+}
+
+func HandleConfirming(client *ethclient.Client, payment *model.Payment) *types.Transaction {
+	var isConfirmed bool
+	var err error
+	// When no Tx hash is set do no confirming. This can happen when the service does a recovery and only check the open balances
+	if payment.LastReceivingBlockHash == "" {
+		isConfirmed = true
+	} else {
+		isConfirmed, err = utils.IsBlockConfirmed(client, common.HexToHash(payment.LastReceivingBlockHash))
 	}
 
-	if fees.Mul(gasPrice, big.NewInt(21000*2)).Cmp(final) > 0 {
-		return fmt.Errorf("requested amount is too low. Fees are: %v", fees)
+	if isConfirmed {
+		return confirm(client, payment)
+	} else if err != nil {
+		log.Printf("Error in getting balance. Acc Address: %v. Try again next confirming round", payment.Account.Address)
+	} else {
+		log.Printf("Block doesn't exist anymore. Potential reverted Tx. Checkout blockNr: %v, Acc Address: %v", payment.LastReceivingBlockNr, payment.Account.Address)
+		finalBalanceOnChaingateWallet, err := utils.GetBalanceAt(client, common.HexToAddress(payment.Account.Address))
+		if err != nil {
+			log.Printf("Error in getting balance in final recovery. Acc Address: %v", payment.Account.Address)
+			return nil
+		}
+		Fail(payment, finalBalanceOnChaingateWallet)
 	}
 	return nil
 }
 
-func expire(payment *model.Payment, balance *big.Int) {
+func Pay(payment *model.Payment, balance *big.Int, blockNr *big.Int, blockHash common.Hash) bool {
+	log.Printf("PAYMENT REACHED!!!!")
+	log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
+	payment.LastReceivingBlockNr = model.NewBigInt(blockNr)
+	payment.LastReceivingBlockHash = blockHash.String()
+	if updateState(payment, balance, enum.Paid) != nil {
+		return true
+	}
+	return false
+}
+
+func Expire(payment *model.Payment, balance *big.Int) {
 	payment.Account.Remainder = model.NewBigInt(balance)
 	payment.Account.Used = false
 	if repository.Account.Update(payment.Account) != nil {
@@ -90,35 +167,42 @@ func expire(payment *model.Payment, balance *big.Int) {
 	}
 }
 
-func CheckIfExpired(payment *model.Payment, balance *big.Int) {
-	if balance == nil {
-		balance = big.NewInt(0).Add(&payment.CurrentPaymentState.AmountReceived.Int, &payment.Account.Remainder.Int)
+func Fail(payment *model.Payment, balance *big.Int) {
+	payment.Account.Remainder = model.NewBigInt(balance)
+	payment.Account.Used = false
+	if repository.Account.Update(payment.Account) != nil {
+		log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
 	}
-	index := slices.IndexFunc(payment.PaymentStates, func(ps model.PaymentState) bool { return ps.StatusName == enum.Waiting })
-	if payment.PaymentStates[index].CreatedAt.Add(15 * time.Minute).Before(time.Now()) {
-		expire(payment, balance)
+	if updateState(payment, nil, enum.Failed) != nil {
+		return
 	}
 }
 
-func CheckBalanceNotify(payment *model.Payment, txValue *big.Int, blockNr uint64, txHash common.Hash) {
-	balance := big.NewInt(0).Add(&payment.CurrentPaymentState.AmountReceived.Int, txValue)
-	if payment.IsPaid(balance) {
-		log.Printf("PAYMENT REACHED!!!!")
-		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
-		payment.LastReceivingBlockNr = blockNr
-		payment.LastReceivingTransactionHash = txHash.String()
-		if updateState(payment, balance, enum.Paid) != nil {
-			return
-		}
-	} else {
-		updateState(payment, balance, enum.PartiallyPaid)
-		log.Printf("PAYMENT partly paid")
-		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
+func confirm(client *ethclient.Client, payment *model.Payment) *types.Transaction {
+	if updateState(payment, nil, enum.Confirmed) != nil {
+		return nil
 	}
+	tx := utils.Forward(client, payment)
+	if tx == nil {
+		return nil
+	}
+	if updateState(payment, nil, enum.Forwarded) != nil {
+		return nil
+	}
+	utils.CheckForwardEarnings(client, payment.Account)
+	return tx
+}
+
+func finish(payment *model.Payment) {
+	payment.Account.Used = false
+	if repository.Account.Update(payment.Account) != nil {
+		log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
+	}
+	updateState(payment, nil, enum.Finished)
 }
 
 func CheckBalanceStartup(client *ethclient.Client, payment *model.Payment) {
-	balance, err := GetUserBalanceAt(client, common.HexToAddress(payment.Account.Address), &payment.Account.Remainder.Int)
+	balance, err := utils.GetUserBalanceAt(client, common.HexToAddress(payment.Account.Address), &payment.Account.Remainder.Int)
 	if err != nil {
 		log.Printf("Error by getting balance %v", err)
 	}
@@ -130,296 +214,26 @@ func CheckBalanceStartup(client *ethclient.Client, payment *model.Payment) {
 			return
 		}
 	} else if payment.IsNewlyPartlyPaid(balance) {
-		updateState(payment, balance, enum.PartiallyPaid)
 		log.Printf("PAYMENT partly paid")
 		log.Printf("Current Payment: %s \n Expected Payment: %s", balance.String(), payment.GetActiveAmount().String())
+		updateState(payment, balance, enum.PartiallyPaid)
 	} else {
 		log.Printf("PAYMENT still not reached Address: %s", payment.Account.Address)
 		log.Printf("Current Payment: %s WEI, %s ETH", balance.String(), utils.GetETHFromWEI(balance).String())
 		log.Printf("Expected Payment: %s WEI, %s ETH", payment.GetActiveAmount().String(), utils.GetETHFromWEI(payment.GetActiveAmount()).String())
 		log.Printf("Please pay additional: %s WEI, %s ETH", big.NewInt(0).Sub(payment.GetActiveAmount(), balance).String(), utils.GetETHFromWEI(payment.GetActiveAmount()).Sub(utils.GetETHFromWEI(balance)).String())
-		CheckIfExpired(payment, balance)
-	}
-}
-
-/*
-	Theoretically the best way to check it is, that you check the transaction receipt. Because the user can pay multiple times we would need to check multiple txs.
-    Because there is no limit and the user could spam us with a lot of txs and we would run out of API-calls to infura.
-    Therefore, it simply checks the balance after 6 blocks if it is still reached.
-*/
-func IsConfirmed(client *ethclient.Client, p *model.Payment) (bool, error) {
-	block, err := client.BlockByHash(context.Background(), common.HexToHash(p.LastReceivingTransactionHash))
-	if err != nil {
-		return false, err
-	}
-	if err == ethereum.NotFound {
-		return false, nil
-	}
-	return block != nil, nil
-}
-
-func confirm(client *ethclient.Client, payment *model.Payment) *types.Transaction {
-	if updateState(payment, nil, enum.Confirmed) != nil {
-		return nil
-	}
-	tx := forward(client, payment)
-	if updateState(payment, nil, enum.Forwarded) != nil {
-		return nil
-	}
-	checkForwardEarnings(client, payment.Account)
-	cleanUp(payment)
-	return tx
-}
-
-func HandleConfirming(client *ethclient.Client, payment *model.Payment) *types.Transaction {
-	var isConfirmed bool
-	var err error
-	// When no Tx hash is set do no confirming. This can happen when the service does a recovery and only check the open balances
-	if payment.LastReceivingTransactionHash == "" {
-		isConfirmed = true
-	} else {
-		isConfirmed, err = IsConfirmed(client, payment)
-	}
-
-	if isConfirmed {
-		return confirm(client, payment)
-	} else if err != nil {
-		log.Printf("Error in getting balance. Acc Address: %v. Try again next confirming round", payment.Account.Address)
-	} else {
-		log.Printf("Block doesn't exist anymore. Potential reverted Tx. Checkout blockNr: %v, Acc Address: %v", payment.LastReceivingBlockNr, payment.Account.Address)
-		finalBalanceOnChaingateWallet, err := GetBalanceAt(client, common.HexToAddress(payment.Account.Address))
-		if err != nil {
-			log.Printf("Error in getting balance in final recovery. Acc Address: %v", payment.Account.Address)
-			return nil
+		if utils.CheckIfExpired(payment, balance) {
+			Expire(payment, balance)
 		}
-		payment.Account.Remainder = model.NewBigInt(finalBalanceOnChaingateWallet)
-		payment.Account.Used = false
-		if repository.Account.Update(payment.Account) != nil {
-			log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
-		}
-		updateState(payment, nil, enum.Failed)
 	}
-	return nil
-}
-
-func cleanUp(payment *model.Payment) {
-	payment.Account.Used = false
-	if repository.Account.Update(payment.Account) != nil {
-		log.Fatalf("Couldn't write wallet to database: %+v\n", &payment.Account)
-	}
-	updateState(payment, nil, enum.Finished)
 }
 
 func updateState(payment *model.Payment, balance *big.Int, state enum.State) error {
 	newState := payment.UpdatePaymentState(state, balance)
-	err := service.SendState(payment.ID, newState)
+	err := service.SendState(payment.ID, newState, payment.ForwardingTransactionHash)
 	if err != nil {
 		return nil
 	}
 	repository.Payment.UpdatePaymentState(payment)
 	return err
-}
-
-/*
-	Subtracts the remainder, because this is the CHainGateEarnings
-*/
-func GetUserBalanceAt(client *ethclient.Client, address common.Address, remainder *big.Int) (*big.Int, error) {
-	realBalance, err := GetBalanceAt(client, address)
-	if err != nil {
-		return nil, err
-	}
-	return realBalance.Sub(realBalance, remainder), nil
-}
-
-// GetBalanceAt
-/*
-   Never use this Method to check if the user has paid enough, because it doesn't factor in the *Remainder*
-*/
-func GetBalanceAt(client *ethclient.Client, address common.Address) (*big.Int, error) {
-	return client.BalanceAt(context.Background(), address, nil)
-}
-
-func forward(client *ethclient.Client, payment *model.Payment) *types.Transaction {
-	toAddress := common.HexToAddress(payment.MerchantWallet)
-	gasTipCap, err := client.SuggestGasTipCap(context.Background())
-	if err != nil {
-		log.Printf("Couldn't get suggested gasTipCap %v", err)
-	}
-
-	var gasPrice *big.Int
-	if config.Chain == nil {
-		gasPrice, err = client.SuggestGasPrice(context.Background())
-		if err != nil {
-			log.Printf("Couldn't get suggested gasPrice %v", err)
-		}
-	} else {
-		gasPrice = config.Chain.GasPrice
-	}
-
-	var chainID *big.Int
-	if config.Chain == nil {
-		chainID, err = client.NetworkID(context.Background())
-		if err != nil {
-			log.Printf("Couldn't get networkID %v", err)
-		}
-	} else {
-		chainID = config.Chain.ChainId
-	}
-
-	chainGateEarnings := utils.GetChaingateEarnings(&payment.CurrentPaymentState.PayAmount.Int)
-
-	fees := big.NewInt(0).Mul(big.NewInt(21000), gasPrice)
-	feesAndChangateEarnings := big.NewInt(0).Add(fees, chainGateEarnings)
-
-	fmt.Printf("gasPrice: %s\n", gasPrice.String())
-	fmt.Printf("gasTipCap: %s\n", gasTipCap.String())
-	fmt.Printf("chainGateEarnings: %s\n", chainGateEarnings.String())
-	fmt.Printf("Fees: %s\n", fees.String())
-	finalAmount := big.NewInt(0).Sub(payment.GetActiveAmount(), feesAndChangateEarnings)
-	fmt.Printf("finalAmount: %s\n", finalAmount.String())
-
-	gasLimit := uint64(21000)
-
-	// Transaction fees and Gas explained: https://docs.avax.network/learn/platform-overview/transaction-fees
-	tx := types.NewTx(&types.DynamicFeeTx{
-		ChainID:   chainID,
-		Nonce:     payment.Account.Nonce,
-		GasFeeCap: gasPrice,  //gasPrice,     // maximum price per unit of gas that the transaction is willing to pay
-		GasTipCap: gasTipCap, //tipCap,       // maximum amount above the baseFee of a block that the transaction is willing to pay to be included
-		Gas:       gasLimit,
-		To:        &toAddress,
-		Value:     finalAmount,
-	})
-
-	key, err := utils.GetPrivateKey(payment.Account.PrivateKey)
-	if err != nil {
-		log.Printf("Couldn't get privateKey %v", err)
-	}
-	signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(chainID), key)
-	if err != nil {
-		log.Printf("Couldn't get latests signer for ChainID %v", err)
-	}
-
-	err = client.SendTransaction(context.Background(), signedTx)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	_, err = bind.WaitMined(context.Background(), client, signedTx)
-	if err != nil {
-		log.Fatalf("Can't wait until transaction is mined %v", err)
-	}
-
-	finalBalanceOnChaingateWallet, err := GetBalanceAt(client, common.HexToAddress(payment.Account.Address))
-	if err != nil {
-		log.Fatalf("Unable to get Balance of chaingate wallet %v", err)
-	}
-
-	payment.Account.Remainder = model.NewBigInt(finalBalanceOnChaingateWallet)
-
-	fmt.Printf("tx sent: %s\n", signedTx.Hash().Hex())
-	payment.Account.Nonce = payment.Account.Nonce + 1
-	payment.ForwardingTransactionHash = signedTx.Hash().String()
-	return signedTx
-}
-
-func forwardEarnings(client *ethclient.Client, account *model.Account, fees *big.Int, gasPrice *big.Int) *types.Transaction {
-	toAddress := common.HexToAddress(config.Opts.TargetWallet)
-	gasTipCap, err := client.SuggestGasTipCap(context.Background())
-	if err != nil {
-		log.Fatal(err)
-		return nil
-	}
-
-	var chainID *big.Int
-	if config.Chain == nil {
-		chainID, err = client.NetworkID(context.Background())
-		if err != nil {
-			log.Fatal(err)
-			return nil
-		}
-	} else {
-		chainID = config.Chain.ChainId
-	}
-
-	gasLimit := uint64(21000)
-	finalAmount := big.NewInt(0).Sub(&account.Remainder.Int, fees)
-
-	// Transaction fees and Gas explained: https://docs.avax.network/learn/platform-overview/transaction-fees
-	tx := types.NewTx(&types.DynamicFeeTx{
-		ChainID:   chainID,
-		Nonce:     account.Nonce,
-		GasFeeCap: gasPrice,  //gasPrice,     // maximum price per unit of gas that the transaction is willing to pay
-		GasTipCap: gasTipCap, //tipCap,       // maximum amount above the baseFee of a block that the transaction is willing to pay to be included
-		Gas:       gasLimit,
-		To:        &toAddress,
-		Value:     finalAmount,
-	})
-
-	key, err := utils.GetPrivateKey(account.PrivateKey)
-	if err != nil {
-		log.Fatal(err)
-		return nil
-	}
-	signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(chainID), key)
-	if err != nil {
-		log.Fatal(err)
-		return nil
-	}
-
-	err = client.SendTransaction(context.Background(), signedTx)
-	if err != nil {
-		log.Printf("Unable to send Transaction %v", err)
-		return nil
-	}
-
-	_, err = bind.WaitMined(context.Background(), client, signedTx)
-	if err != nil {
-		log.Printf("Can't wait until transaction is mined %v", err)
-		return nil
-	}
-
-	finalBalanceOnChaingateWallet, err := GetBalanceAt(client, common.HexToAddress(account.Address))
-	if err != nil {
-		log.Printf("Unable to get Balance of chaingate wallet %v", err)
-		return nil
-	}
-	account.Remainder = model.NewBigInt(finalBalanceOnChaingateWallet)
-
-	fmt.Printf("tx sent: %s\n", signedTx.Hash().Hex())
-	account.Nonce = account.Nonce + 1
-	return signedTx
-}
-
-/*
-	returns true when the earning were forwarded and the corresponding transaction
-*/
-func checkForwardEarnings(client *ethclient.Client, account *model.Account) (bool, *types.Transaction) {
-	var err error
-	var gasPrice *big.Int
-	if config.Chain == nil {
-		gasPrice, err = client.SuggestGasPrice(context.Background())
-		if err != nil {
-			log.Fatal(err)
-		}
-	} else {
-		gasPrice = config.Chain.GasPrice
-	}
-
-	fees := big.NewInt(0).Mul(big.NewInt(21000), gasPrice)
-
-	factor := new(big.Int)
-	factor, ok := factor.SetString(config.Opts.FeeFactor, 10)
-	if !ok {
-		fmt.Println("SetString: error")
-		return false, nil
-	}
-
-	earningsForwardThreshold := big.NewInt(0).Mul(fees, factor)
-	if earningsForwardThreshold.Cmp(&account.Remainder.Int) > 0 {
-		return false, nil
-	}
-
-	tx := forwardEarnings(client, account, fees, gasPrice)
-	return true, tx
 }

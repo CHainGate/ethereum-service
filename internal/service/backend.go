@@ -11,8 +11,9 @@ import (
 	"github.com/google/uuid"
 )
 
-func SendState(paymentId uuid.UUID, state model.PaymentState) error {
+func SendState(paymentId uuid.UUID, state model.PaymentState, txHash string) error {
 	paymentUpdateDto := *backendClientApi.NewPaymentUpdateDto(paymentId.String(), state.PayAmount.String(), "ETH", state.AmountReceived.String(), state.StatusName.String()) // PaymentUpdateDto |  (optional)
+	paymentUpdateDto.TxHash = &txHash
 
 	configuration := backendClientApi.NewConfiguration()
 	configuration.Servers[0].URL = config.Opts.BackendBaseUrl

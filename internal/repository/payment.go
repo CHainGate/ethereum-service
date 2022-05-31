@@ -47,7 +47,7 @@ func (r *PaymentRepository) GetAllOpen() []model.Payment {
 	return payments
 }
 
-func (r *PaymentRepository) GetByMode(mode enum.Mode) []model.Payment {
+func (r *PaymentRepository) GetOpenByMode(mode enum.Mode) []model.Payment {
 	var payments []model.Payment
 	r.DB.
 		Preload("Account").
@@ -60,7 +60,7 @@ func (r *PaymentRepository) GetByMode(mode enum.Mode) []model.Payment {
 	return payments
 }
 
-func (r *PaymentRepository) GetAllConfirming(mode enum.Mode) []model.Payment {
+func (r *PaymentRepository) GetConfirming(mode enum.Mode) []model.Payment {
 	var payments []model.Payment
 	r.DB.
 		Where("mode = ?", mode).
@@ -68,6 +68,18 @@ func (r *PaymentRepository) GetAllConfirming(mode enum.Mode) []model.Payment {
 		Preload("CurrentPaymentState").
 		Joins("CurrentPaymentState").
 		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []enum.State{enum.Paid}).
+		Find(&payments)
+	return payments
+}
+
+func (r *PaymentRepository) GetFinishing(mode enum.Mode) []model.Payment {
+	var payments []model.Payment
+	r.DB.
+		Where("mode = ?", mode).
+		Preload("Account").
+		Preload("CurrentPaymentState").
+		Joins("CurrentPaymentState").
+		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []enum.State{enum.Forwarded}).
 		Find(&payments)
 	return payments
 }

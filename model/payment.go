@@ -23,25 +23,26 @@ type IPaymentRepository interface {
 	UpdatePaymentState(payment *Payment)
 	Create(payment *Payment, finalPaymentAmount *big.Int) (*Payment, error)
 	GetAllOpen() []Payment
-	GetByMode(mode enum.Mode) []Payment
-	GetAllConfirming(mode enum.Mode) []Payment
+	GetOpenByMode(mode enum.Mode) []Payment
+	GetConfirming(mode enum.Mode) []Payment
+	GetFinishing(mode enum.Mode) []Payment
 }
 
 type Payment struct {
 	Base
-	Account                      *Account
-	AccountID                    uuid.UUID `gorm:"type:uuid"`
-	MerchantWallet               string
-	Mode                         enum.Mode
-	PriceAmount                  float64 `gorm:"type:numeric(30,15);default:0"`
-	PriceCurrency                string
-	CurrentPaymentStateId        *uuid.UUID     `gorm:"type:uuid"`
-	CurrentPaymentState          PaymentState   `gorm:"foreignKey:CurrentPaymentStateId"`
-	PaymentStates                []PaymentState `gorm:"<-:false"`
-	LastReceivingBlockNr         uint64
-	LastReceivingTransactionHash string
-	ForwardingBlockNr            uint64
-	ForwardingTransactionHash    string
+	Account                   *Account
+	AccountID                 uuid.UUID `gorm:"type:uuid"`
+	MerchantWallet            string
+	Mode                      enum.Mode
+	PriceAmount               float64 `gorm:"type:numeric(30,15);default:0"`
+	PriceCurrency             string
+	CurrentPaymentStateId     *uuid.UUID     `gorm:"type:uuid"`
+	CurrentPaymentState       PaymentState   `gorm:"foreignKey:CurrentPaymentStateId"`
+	PaymentStates             []PaymentState `gorm:"<-:false"`
+	LastReceivingBlockNr      *BigInt        `gorm:"type:numeric(30);default:0"`
+	LastReceivingBlockHash    string
+	ForwardingBlockNr         *BigInt `gorm:"type:numeric(30);default:0"`
+	ForwardingTransactionHash string
 }
 
 func (p *Payment) GetActiveAmount() *big.Int {
