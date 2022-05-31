@@ -32,7 +32,7 @@ func GetWEIFromETH(val *float64) *big.Int {
 func GetPrivateKey(key string) (*ecdsa.PrivateKey, error) {
 	decryptedKey, err := Decrypt([]byte(config.Opts.PrivateKeySecret), key)
 	if err != nil {
-		log.Fatal("Unable to decrypt Private Key!", err)
+		log.Println("Unable to decrypt Private Key!", err)
 	}
 	if strings.HasPrefix(decryptedKey, "0x") {
 		decryptedKey = decryptedKey[2:]

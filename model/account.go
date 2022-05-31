@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"ethereum-service/internal/config"
 	"ethereum-service/utils"
-	"fmt"
 	"log"
 	"math/big"
 
@@ -36,22 +35,23 @@ func CreateAccount(mode enum.Mode) *Account {
 	account := Account{}
 	privateKey, err := crypto.GenerateKey()
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Unable to generate private key! %v", err)
+		return &account
 	}
 	encryptedPrivateKey, err := utils.Encrypt([]byte(config.Opts.PrivateKeySecret), hexutil.Encode(crypto.FromECDSA(privateKey)))
 	if err != nil {
-		log.Fatal("Unable to encrypt Private Key!", err)
+		log.Printf("Unable to encrypt private key! %v", err)
+		return &account
 	}
 	account.PrivateKey = encryptedPrivateKey
 
 	publicKey := privateKey.Public()
 	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
 	if !ok {
-		log.Fatal("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
+		log.Printf("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
 	}
 
 	address := crypto.PubkeyToAddress(*publicKeyECDSA).Hex()
-	fmt.Println("New account with address created. Address: ", address)
 	account.Address = address
 	account.Remainder = NewBigInt(big.NewInt(0))
 

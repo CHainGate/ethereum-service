@@ -1,6 +1,6 @@
 # ethereum-service
 
-The tests with the in-memory blockchain can fail sometimes. Rerun should most times fix it. So far there wa sno clear indication why this happens.
+The tests with the in-memory blockchain can fail sometimes. Rerun should most times fix it. So far there was no clear indication why this happens.
 
 swagger url: http://localhost:9000/api/swaggerui/
 

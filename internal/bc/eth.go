@@ -41,10 +41,9 @@ func GetBalanceAt(client *ethclient.Client, address common.Address) (*big.Int, e
 }
 
 /*
-	Theoretically the best way to check it is, that you check the transaction receipt. Because the user can pay multiple times we would need to check multiple txs.
-    Because there is no limit and the user could spam us with a lot of tx's, therefore we would run out of API-calls to infura.
-    Therefore, it simply checks the balance after X blocks if it is still reached.
-	It checks the block therefore if older blocks gets reverted it is also not valid anymore.
+	Theoretically the best way to check it is, that you check the transaction receipt. Because the user can pay multiple times we would need to check multiple tx's.
+    Because there is no limit and the user could spam with a lot of tx's and run out of API-calls to infura.
+    Therefore, this method checks the block. If older blocks gets reverted this is also not valid anymore.
 */
 func IsBlockConfirmed(client *ethclient.Client, blockHash common.Hash) (bool, error) {
 	block, err := client.BlockByHash(context.Background(), blockHash)
@@ -93,7 +92,7 @@ func CheckIfAmountIsTooLow(mode enum.Mode, final *big.Int) error {
 	if config.Chain == nil {
 		gasPrice, err = client.SuggestGasPrice(context.Background())
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
 	} else {
 		gasPrice = config.Chain.GasPrice
@@ -118,12 +117,8 @@ func GetClientByMode(mode enum.Mode) *ethclient.Client {
 
 func Forward(client *ethclient.Client, payment *model.Payment) *types.Transaction {
 	toAddress := common.HexToAddress(payment.MerchantWallet)
-	gasTipCap, err := client.SuggestGasTipCap(context.Background())
-	if err != nil {
-		log.Printf("Couldn't get suggested gasTipCap %v", err)
-	}
-
 	var gasPrice *big.Int
+	var err error
 	if config.Chain == nil {
 		gasPrice, err = client.SuggestGasPrice(context.Background())
 		if err != nil {
@@ -132,89 +127,27 @@ func Forward(client *ethclient.Client, payment *model.Payment) *types.Transactio
 	} else {
 		gasPrice = config.Chain.GasPrice
 	}
-
-	var chainID *big.Int
-	if config.Chain == nil {
-		chainID, err = client.NetworkID(context.Background())
-		if err != nil {
-			log.Printf("Couldn't get networkID %v", err)
-		}
-	} else {
-		chainID = config.Chain.ChainId
-	}
-
 	chainGateEarnings := utils.GetChaingateEarnings(&payment.CurrentPaymentState.PayAmount.Int)
-
 	fees := big.NewInt(0).Mul(big.NewInt(21000), gasPrice)
 	feesAndChangateEarnings := big.NewInt(0).Add(fees, chainGateEarnings)
-
-	fmt.Printf("gasPrice: %s\n", gasPrice.String())
-	fmt.Printf("gasTipCap: %s\n", gasTipCap.String())
-	fmt.Printf("chainGateEarnings: %s\n", chainGateEarnings.String())
-	fmt.Printf("Fees: %s\n", fees.String())
 	finalAmount := big.NewInt(0).Sub(payment.GetActiveAmount(), feesAndChangateEarnings)
-	fmt.Printf("finalAmount: %s\n", finalAmount.String())
 
-	gasLimit := uint64(21000)
+	signedTx := makeTransaction(client, payment.Account, gasPrice, finalAmount, toAddress)
 
-	// Transaction fees and Gas explained: https://docs.avax.network/learn/platform-overview/transaction-fees
-	tx := types.NewTx(&types.DynamicFeeTx{
-		ChainID:   chainID,
-		Nonce:     payment.Account.Nonce,
-		GasFeeCap: gasPrice,  //gasPrice,     // maximum price per unit of gas that the transaction is willing to pay
-		GasTipCap: gasTipCap, //tipCap,       // maximum amount above the baseFee of a block that the transaction is willing to pay to be included
-		Gas:       gasLimit,
-		To:        &toAddress,
-		Value:     finalAmount,
-	})
-
-	key, err := utils.GetPrivateKey(payment.Account.PrivateKey)
-	if err != nil {
-		log.Printf("Couldn't get privateKey %v", err)
-	}
-	signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(chainID), key)
-	if err != nil {
-		log.Printf("Couldn't get latests signer for ChainID %v", err)
-	}
-
-	err = client.SendTransaction(context.Background(), signedTx)
-	if err == core.ErrNonceTooLow {
-		nonce, err := client.PendingNonceAt(context.Background(), common.HexToAddress(payment.Account.Address))
-		if err != nil {
-			log.Printf("Couldn't get Nonce %v", err)
-			return nil
-		}
-		payment.Account.Nonce = nonce
-		Forward(client, payment)
-	}
-	if err != nil {
-		log.Printf("Couldn't send Transaction %v, %v", signedTx.Hash(), err)
-		return nil
-	}
-
-	_, err = bind.WaitMined(context.Background(), client, signedTx)
-	if err != nil {
-		log.Printf("Can't wait until transaction is mined %v", err)
-	}
-
-	finalBalanceOnChaingateWallet, err := GetBalanceAt(client, common.HexToAddress(payment.Account.Address))
-	if err != nil {
-		log.Printf("Unable to get Balance of chaingate wallet %v", err)
-	}
-
-	payment.Account.Remainder = model.NewBigInt(finalBalanceOnChaingateWallet)
-
-	fmt.Printf("tx sent: %s\n", signedTx.Hash().Hex())
-	payment.Account.Nonce = payment.Account.Nonce + 1
 	payment.ForwardingTransactionHash = signedTx.Hash().String()
 	return signedTx
 }
 
 func ForwardEarnings(client *ethclient.Client, account *model.Account, fees *big.Int, gasPrice *big.Int) *types.Transaction {
+	finalAmount := big.NewInt(0).Sub(&account.Remainder.Int, fees)
 	toAddress := common.HexToAddress(config.Opts.TargetWallet)
+	return makeTransaction(client, account, gasPrice, finalAmount, toAddress)
+}
+
+func makeTransaction(client *ethclient.Client, account *model.Account, gasPrice *big.Int, finalAmount *big.Int, toAddress common.Address) *types.Transaction {
 	gasTipCap, err := client.SuggestGasTipCap(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 		return nil
 	}
 
@@ -222,7 +155,7 @@ func ForwardEarnings(client *ethclient.Client, account *model.Account, fees *big
 	if config.Chain == nil {
 		chainID, err = client.NetworkID(context.Background())
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 			return nil
 		}
 	} else {
@@ -230,9 +163,7 @@ func ForwardEarnings(client *ethclient.Client, account *model.Account, fees *big
 	}
 
 	gasLimit := uint64(21000)
-	finalAmount := big.NewInt(0).Sub(&account.Remainder.Int, fees)
 
-	// Transaction fees and Gas explained: https://docs.avax.network/learn/platform-overview/transaction-fees
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   chainID,
 		Nonce:     account.Nonce,
@@ -245,16 +176,25 @@ func ForwardEarnings(client *ethclient.Client, account *model.Account, fees *big
 
 	key, err := utils.GetPrivateKey(account.PrivateKey)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 		return nil
 	}
 	signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(chainID), key)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 		return nil
 	}
 
 	err = client.SendTransaction(context.Background(), signedTx)
+	if err == core.ErrNonceTooLow {
+		nonce, err := client.PendingNonceAt(context.Background(), common.HexToAddress(account.Address))
+		if err != nil {
+			log.Printf("Couldn't get Nonce %v", err)
+			return nil
+		}
+		account.Nonce = nonce
+		makeTransaction(client, account, gasPrice, finalAmount, toAddress)
+	}
 	if err != nil {
 		log.Printf("Unable to send Transaction %v", err)
 		return nil
@@ -271,9 +211,8 @@ func ForwardEarnings(client *ethclient.Client, account *model.Account, fees *big
 		log.Printf("Unable to get Balance of chaingate wallet %v", err)
 		return nil
 	}
-	account.Remainder = model.NewBigInt(finalBalanceOnChaingateWallet)
-
 	fmt.Printf("tx sent: %s\n", signedTx.Hash().Hex())
+	account.Remainder = model.NewBigInt(finalBalanceOnChaingateWallet)
 	account.Nonce = account.Nonce + 1
 	return signedTx
 }
@@ -287,7 +226,7 @@ func CheckForwardEarnings(client *ethclient.Client, account *model.Account) (boo
 	if config.Chain == nil {
 		gasPrice, err = client.SuggestGasPrice(context.Background())
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
 	} else {
 		gasPrice = config.Chain.GasPrice
