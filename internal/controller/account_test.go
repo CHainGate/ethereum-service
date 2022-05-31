@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"ethereum-service/internal/config"
 	"ethereum-service/internal/repository"
 	"ethereum-service/internal/testutils"
 	"testing"
@@ -9,6 +10,7 @@ import (
 )
 
 func TestGetAccount(t *testing.T) {
+	config.ReadOpts()
 	mock, gormDb := testutils.NewMock()
 	repository.InitAccount(gormDb)
 	mock = testutils.SetupGetFreeAccount(mock)

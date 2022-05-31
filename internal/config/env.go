@@ -17,6 +17,7 @@ type OptsType struct {
 	FeeFactor                  string
 	IncomingBlockConfirmations int64
 	OutgoingTxConfirmations    int64
+	PrivateKeySecret           string
 	ProxyBaseUrl               string
 	BackendBaseUrl             string
 	DBOpts                     DBOpts
@@ -70,6 +71,7 @@ func ReadOpts() {
 		flag.StringVar(&o.FeeFactor, "FEE_FACTOR", lookupEnv("FEE_FACTOR", "100"), "How many times the earnings should be higher than the fees to forward the earnings")
 		flag.Int64Var(&o.IncomingBlockConfirmations, "INCOMING_BLOCK_CONFIRMATIONS", lookupInt64Env("INCOMING_BLOCK_CONFIRMATIONS", 12), "How many confirmations should be waited until the block will be counted as confirmed")
 		flag.Int64Var(&o.OutgoingTxConfirmations, "OUTGOING_TX_CONFIRMATIONS", lookupInt64Env("OUTGOING_TX_CONFIRMATIONS", 3), "How many confirmations should be waited until the tx of the payment will be counted as finished")
+		flag.StringVar(&o.PrivateKeySecret, "PRIVATE_KEY_SECRET", lookupEnv("PRIVATE_KEY_SECRET", "secret16byte1234"), "Secret for decrypting private keys")
 		flag.StringVar(&o.DBOpts.DbHost, "DB_HOST", lookupEnv("DB_HOST"), "Database Host")
 		flag.StringVar(&o.DBOpts.DbUser, "DB_USER", lookupEnv("DB_USER"), "Database User")
 		flag.StringVar(&o.DBOpts.DbPassword, "DB_PASSWORD", lookupEnv("DB_PASSWORD"), "Database Password")

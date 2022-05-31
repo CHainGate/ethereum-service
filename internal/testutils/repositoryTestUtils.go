@@ -8,10 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/params"
 	"log"
 	"math/big"
-	"testing"
 	"time"
 
 	"github.com/CHainGate/backend/pkg/enum"
@@ -459,18 +457,6 @@ func NewMock() (sqlmock.Sqlmock, *gorm.DB) {
 
 	gormDb, err := gorm.Open(dialector, &gorm.Config{})
 	return mock, gormDb
-}
-
-func CustomChainSetup(t *testing.T) (*model.Account, *ethclient.Client) {
-	genesisAcc := model.CreateAccount(enum.Main)
-	pk, _ := utils.GetPrivateKey(genesisAcc.PrivateKey)
-	auth, _ := NewAuth(pk, context.Background())
-	client := NewTestChain(t, auth)
-	config.Chain = &config.ChainConfig{
-		ChainId:  big.NewInt(1337),
-		GasPrice: big.NewInt(params.InitialBaseFee),
-	}
-	return genesisAcc, client
 }
 
 func CreateInitialPayment(client *ethclient.Client, genesisAcc *model.Account, payAmount *big.Int, targetAddress string) *types.Transaction {

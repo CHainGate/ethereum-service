@@ -2,6 +2,8 @@ package model
 
 import (
 	"crypto/ecdsa"
+	"ethereum-service/internal/config"
+	"ethereum-service/utils"
 	"fmt"
 	"log"
 	"math/big"
@@ -36,7 +38,11 @@ func CreateAccount(mode enum.Mode) *Account {
 	if err != nil {
 		log.Fatal(err)
 	}
-	account.PrivateKey = hexutil.Encode(crypto.FromECDSA(privateKey))
+	encryptedPrivateKey, err := utils.Encrypt([]byte(config.Opts.PrivateKeySecret), hexutil.Encode(crypto.FromECDSA(privateKey)))
+	if err != nil {
+		log.Fatal("Unable to encrypt Private Key!", err)
+	}
+	account.PrivateKey = encryptedPrivateKey
 
 	publicKey := privateKey.Public()
 	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)

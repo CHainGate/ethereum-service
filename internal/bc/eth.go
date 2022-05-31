@@ -2,7 +2,6 @@ package bc
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"ethereum-service/internal/config"
 	"ethereum-service/model"
@@ -17,20 +16,10 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"log"
 	"math/big"
-	"strings"
 	"time"
-
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var TxFailed = errors.New("tx failed")
-
-func GetPrivateKey(key string) (*ecdsa.PrivateKey, error) {
-	if strings.HasPrefix(key, "0x") {
-		key = key[2:]
-	}
-	return crypto.HexToECDSA(key)
-}
 
 /*
 	Subtracts the remainder, because this is the CHainGateEarnings
@@ -179,7 +168,7 @@ func Forward(client *ethclient.Client, payment *model.Payment) *types.Transactio
 		Value:     finalAmount,
 	})
 
-	key, err := GetPrivateKey(payment.Account.PrivateKey)
+	key, err := utils.GetPrivateKey(payment.Account.PrivateKey)
 	if err != nil {
 		log.Printf("Couldn't get privateKey %v", err)
 	}
@@ -254,7 +243,7 @@ func ForwardEarnings(client *ethclient.Client, account *model.Account, fees *big
 		Value:     finalAmount,
 	})
 
-	key, err := GetPrivateKey(account.PrivateKey)
+	key, err := utils.GetPrivateKey(account.PrivateKey)
 	if err != nil {
 		log.Fatal(err)
 		return nil

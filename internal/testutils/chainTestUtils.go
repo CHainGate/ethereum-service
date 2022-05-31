@@ -3,6 +3,10 @@ package testutils
 import (
 	"context"
 	"crypto/ecdsa"
+	"ethereum-service/internal/config"
+	"ethereum-service/model"
+	"ethereum-service/utils"
+	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -92,6 +96,18 @@ func generateTestChain(testAddr common.Address, testBalance *big.Int) (*core.Gen
 	blocks, _ := core.GenerateChain(c, gblock, engine, db, 1, generate)
 	blocks = append([]*types.Block{gblock}, blocks...)
 	return genesis, blocks
+}
+
+func CustomChainSetup(t *testing.T) (*model.Account, *ethclient.Client) {
+	genesisAcc := model.CreateAccount(enum.Main)
+	pk, _ := utils.GetPrivateKey(genesisAcc.PrivateKey)
+	auth, _ := NewAuth(pk, context.Background())
+	client := NewTestChain(t, auth)
+	config.Chain = &config.ChainConfig{
+		ChainId:  big.NewInt(1337),
+		GasPrice: big.NewInt(params.InitialBaseFee),
+	}
+	return genesisAcc, client
 }
 
 func NewAuth(key *ecdsa.PrivateKey, ctx context.Context) (*bind.TransactOpts, error) {
