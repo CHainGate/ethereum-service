@@ -8,7 +8,6 @@ type AesTest struct {
 	encryptedMessage string
 }
 
-// Do not parallelize this test! Unless there is a way to mock aes to generate the same encryption text
 func TestEncryptDecrypt(t *testing.T) {
 	var aesTest = AesTest{
 		key:              []byte("secret_123456789"),
