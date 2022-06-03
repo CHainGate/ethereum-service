@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"ethereum-service/internal/config"
 	"ethereum-service/internal/testutils"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 )
 
 func TestCreateAccount(t *testing.T) {
+	config.ReadOpts()
 	mock, repo := NewAccountMock()
 	mock = testutils.SetupCreateAccount(mock)
 	ca := testutils.GetChaingateAcc()

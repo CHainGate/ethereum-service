@@ -1,8 +1,13 @@
 package testutils
 
 import (
+	"context"
+	"ethereum-service/internal/config"
 	"ethereum-service/model"
 	"ethereum-service/utils"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"log"
 	"math/big"
 	"time"
@@ -19,6 +24,7 @@ var (
 	merchantAcc      *model.Account
 	emptyPayment     *model.Payment
 	waitingPayment   *model.Payment
+	expiredPayment   *model.Payment
 	partiallyPayment *model.Payment
 	paidPayment      *model.Payment
 	confirmedPayment *model.Payment
@@ -28,13 +34,19 @@ var (
 
 func createEmptyPayment(acc model.Account, mAcc model.Account) *model.Payment {
 	return &model.Payment{
-		Account:        &acc,
-		Mode:           enum.Main,
-		Base:           model.Base{ID: uuid.New()},
-		AccountID:      acc.ID,
-		PriceAmount:    100,
-		PriceCurrency:  "USD",
-		MerchantWallet: mAcc.Address,
+		Account: &acc,
+		Mode:    enum.Main,
+		Base: model.Base{
+			ID:        uuid.New(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+		AccountID:            acc.ID,
+		PriceAmount:          100,
+		PriceCurrency:        "USD",
+		ForwardingBlockNr:    model.NewBigIntFromInt(0),
+		LastReceivingBlockNr: model.NewBigIntFromInt(0),
+		MerchantWallet:       mAcc.Address,
 	}
 }
 
@@ -49,52 +61,51 @@ func CreatePaymentState(paymentID uuid.UUID, accountID uuid.UUID, state enum.Sta
 	}
 }
 
-func addWaitingPaymentState(payment model.Payment) *model.Payment {
-	state := CreatePaymentState(payment.ID, payment.AccountID, enum.Waiting, big.NewInt(0))
+func addPaymentState(payment model.Payment, state model.PaymentState) *model.Payment {
 	payment.CurrentPaymentStateId = &state.ID
 	payment.CurrentPaymentState = state
 	payment.PaymentStates = append(payment.PaymentStates, state)
 	return &payment
+}
+
+func addWaitingPaymentState(payment model.Payment) *model.Payment {
+	state := CreatePaymentState(payment.ID, payment.AccountID, enum.Waiting, big.NewInt(0))
+	return addPaymentState(payment, state)
+}
+
+func addExpiredPaymentState(payment model.Payment) *model.Payment {
+	state := CreatePaymentState(payment.ID, payment.AccountID, enum.Expired, big.NewInt(0))
+	return addPaymentState(payment, state)
 }
 
 func addPartiallyPaidPaymentState(payment model.Payment) *model.Payment {
 	state := CreatePaymentState(payment.ID, payment.AccountID, enum.PartiallyPaid, big.NewInt(10))
-	payment.CurrentPaymentStateId = &state.ID
-	payment.CurrentPaymentState = state
-	payment.PaymentStates = append(payment.PaymentStates, state)
-	return &payment
+	return addPaymentState(payment, state)
 }
 
 func addPaidPaymentState(payment model.Payment) *model.Payment {
 	state := CreatePaymentState(payment.ID, payment.AccountID, enum.Paid, big.NewInt(100000000000000))
-	payment.CurrentPaymentStateId = &state.ID
-	payment.CurrentPaymentState = state
-	payment.PaymentStates = append(payment.PaymentStates, state)
-	return &payment
+	return addPaymentState(payment, state)
 }
 
 func addConfirmedPaymentState(payment model.Payment) *model.Payment {
 	state := CreatePaymentState(payment.ID, payment.AccountID, enum.Confirmed, big.NewInt(100000000000000))
-	payment.CurrentPaymentStateId = &state.ID
-	payment.CurrentPaymentState = state
-	payment.PaymentStates = append(payment.PaymentStates, state)
-	return &payment
+	return addPaymentState(payment, state)
 }
 
 func addForwardedPaymentState(payment model.Payment) *model.Payment {
 	state := CreatePaymentState(payment.ID, payment.AccountID, enum.Forwarded, big.NewInt(100000000000000))
-	payment.CurrentPaymentStateId = &state.ID
-	payment.CurrentPaymentState = state
-	payment.PaymentStates = append(payment.PaymentStates, state)
-	return &payment
+	return addPaymentState(payment, state)
 }
 
 func addFinishedPaymentState(payment model.Payment) *model.Payment {
 	state := CreatePaymentState(payment.ID, payment.AccountID, enum.Finished, big.NewInt(100000000000000))
-	payment.CurrentPaymentStateId = &state.ID
-	payment.CurrentPaymentState = state
-	payment.PaymentStates = append(payment.PaymentStates, state)
-	return &payment
+	return addPaymentState(payment, state)
+}
+
+func addFailedPaymentState(payment model.Payment) *model.Payment {
+	state := CreatePaymentState(payment.ID, payment.AccountID, enum.Failed, big.NewInt(0))
+	return addPaymentState(payment, state)
 }
 
 func GetChaingateAcc() model.Account {
@@ -125,6 +136,11 @@ func GetEmptyPayment() model.Payment {
 func GetWaitingPayment() model.Payment {
 	waitingPayment = addWaitingPaymentState(GetEmptyPayment())
 	return *waitingPayment
+}
+
+func GetExpiredPayment() model.Payment {
+	expiredPayment = addExpiredPaymentState(GetWaitingPayment())
+	return *expiredPayment
 }
 
 func GetPartiallyPayment() model.Payment {
@@ -212,7 +228,45 @@ func SetupCreatePaymentWithoutIdCheck(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 	return mock
 }
 
-func SetupAllPayments(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
+func SetupAllPayments(mock sqlmock.Sqlmock, modes ...enum.Mode) sqlmock.Sqlmock {
+	wp := GetWaitingPayment()
+	ma := GetMerchantAcc()
+	ca := GetChaingateAcc()
+	paymentRows := sqlmock.NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "account_id", "merchant_wallet", "mode", "price_amount", "price_currency", "current_payment_state_id",
+		"CurrentPaymentState__id", "CurrentPaymentState__created_at", "CurrentPaymentState__updated_at", "CurrentPaymentState__deleted_at", "CurrentPaymentState__account_id", "CurrentPaymentState__pay_amount",
+		"CurrentPaymentState__amount_received", "CurrentPaymentState__status_name", "CurrentPaymentState__payment_id"}).
+		AddRow(wp.ID, time.Now(), time.Now(), time.Now(), ca.ID, ma.Address, wp.Mode, wp.PriceAmount, wp.PriceCurrency, wp.CurrentPaymentStateId,
+			wp.CurrentPaymentStateId, time.Now(), time.Now(), time.Now(), ca.ID, wp.CurrentPaymentState.PayAmount, wp.CurrentPaymentState.AmountReceived, wp.CurrentPaymentState.StatusName, wp.ID)
+
+	if len(modes) > 0 {
+		mock.ExpectQuery("SELECT (.+) FROM \"payments\"").
+			WithArgs(modes[0], enum.Waiting, enum.PartiallyPaid).
+			WillReturnRows(paymentRows)
+	} else {
+		mock.ExpectQuery("SELECT (.+) FROM \"payments\"").
+			WithArgs(enum.Waiting, enum.PartiallyPaid).
+			WillReturnRows(paymentRows)
+	}
+
+	accRows := getAccountRow(ca)
+	mock.ExpectQuery("SELECT (.+) FROM \"accounts\"").
+		WithArgs(chaingateAcc.ID).
+		WillReturnRows(accRows)
+
+	stateRows := getPaymentStatesRow(ca, wp)
+	mock.ExpectQuery("SELECT (.+) FROM \"payment_states\"").
+		WithArgs(wp.CurrentPaymentStateId).
+		WillReturnRows(stateRows)
+
+	stateRows = getPaymentStatesRow(ca, wp)
+	mock.ExpectQuery("SELECT (.+) FROM \"payment_states\"").
+		WithArgs(wp.ID).
+		WillReturnRows(stateRows)
+
+	return mock
+}
+
+func SetupModePayments(mock sqlmock.Sqlmock, mode enum.Mode, state enum.State) sqlmock.Sqlmock {
 	wp := GetWaitingPayment()
 	ma := GetMerchantAcc()
 	ca := GetChaingateAcc()
@@ -223,7 +277,7 @@ func SetupAllPayments(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 			wp.CurrentPaymentStateId, time.Now(), time.Now(), time.Now(), ca.ID, wp.CurrentPaymentState.PayAmount, wp.CurrentPaymentState.AmountReceived, wp.CurrentPaymentState.StatusName, wp.ID)
 
 	mock.ExpectQuery("SELECT (.+) FROM \"payments\"").
-		WithArgs(enum.Waiting, enum.PartiallyPaid).
+		WithArgs(mode, state).
 		WillReturnRows(paymentRows)
 
 	accRows := getAccountRow(ca)
@@ -281,6 +335,30 @@ func SetupUpdatePaymentStateToConfirmed(mock sqlmock.Sqlmock, amountPaid *big.In
 	accRows := getAccountRow(ca)
 
 	mockRequests(mock, amountPaid, ca, accRows, pp, stateRows)
+
+	return mock
+}
+
+func SetupUpdatePaymentStateToExpired(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
+	ep := GetExpiredPayment()
+	ca := GetChaingateAcc()
+	ca.Used = false
+	stateRows := getPaymentStatesRow(ca, ep)
+	accRows := getAccountRow(ca)
+
+	mockRequests(mock, big.NewInt(0), ca, accRows, ep, stateRows)
+
+	return mock
+}
+
+func SetupUpdatePaymentStateToFailed(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
+	fp := addFailedPaymentState(GetPaidPayment())
+	ca := GetChaingateAcc()
+	ca.Used = false
+	stateRows := getPaymentStatesRow(ca, *fp)
+	accRows := getAccountRow(ca)
+
+	mockRequests(mock, big.NewInt(0), ca, accRows, *fp, stateRows)
 
 	return mock
 }
@@ -385,4 +463,66 @@ func NewMock() (sqlmock.Sqlmock, *gorm.DB) {
 
 	gormDb, err := gorm.Open(dialector, &gorm.Config{})
 	return mock, gormDb
+}
+
+func CreateInitialPayment(client *ethclient.Client, genesisAcc *model.Account, payAmount *big.Int, targetAddress string) *types.Transaction {
+	nonce, err := client.PendingNonceAt(context.Background(), common.HexToAddress(genesisAcc.Address))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var gasPrice *big.Int
+	if config.Chain == nil {
+		gasPrice, err = client.SuggestGasPrice(context.Background())
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		gasPrice = config.Chain.GasPrice
+	}
+	gasTipCap, err := client.SuggestGasTipCap(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var chainID *big.Int
+	if config.Chain == nil {
+		chainID, err = client.NetworkID(context.Background())
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		chainID = config.Chain.ChainId
+	}
+
+	gasLimit := uint64(21000)
+
+	toAddress := common.HexToAddress(targetAddress)
+
+	// Transaction fees and Gas explained: https://docs.avax.network/learn/platform-overview/transaction-fees
+	tx := types.NewTx(&types.DynamicFeeTx{
+		ChainID:   chainID,
+		Nonce:     nonce,
+		GasFeeCap: gasPrice,  //gasPrice,     // maximum price per unit of gas that the transaction is willing to pay
+		GasTipCap: gasTipCap, //tipCap,       // maximum amount above the baseFee of a block that the transaction is willing to pay to be included
+		Gas:       gasLimit,
+		To:        &toAddress,
+		Value:     payAmount,
+	})
+
+	key, err := utils.GetPrivateKey(genesisAcc.PrivateKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+	signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(chainID), key)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = client.SendTransaction(context.Background(), signedTx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return signedTx
 }

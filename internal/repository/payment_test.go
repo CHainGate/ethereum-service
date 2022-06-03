@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"ethereum-service/internal/config"
 	"ethereum-service/internal/testutils"
 	"math/big"
 	"os"
@@ -30,9 +31,38 @@ func TestCreatePayment(t *testing.T) {
 }
 
 func TestGetAllPayments(t *testing.T) {
+	config.ReadOpts()
 	mock, repo := NewPaymentMock()
 	mock = testutils.SetupAllPayments(mock)
 	repo.GetAllOpen()
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestGetOpenByMode(t *testing.T) {
+	config.ReadOpts()
+	mock, repo := NewPaymentMock()
+	mock = testutils.SetupAllPayments(mock, enum.Main)
+	repo.GetOpenByMode(enum.Main)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestGetConfirming(t *testing.T) {
+	mock, repo := NewPaymentMock()
+	mock = testutils.SetupModePayments(mock, enum.Main, enum.Paid)
+	repo.GetConfirming(enum.Main)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestGetFinishing(t *testing.T) {
+	mock, repo := NewPaymentMock()
+	mock = testutils.SetupModePayments(mock, enum.Main, enum.Forwarded)
+	repo.GetFinishing(enum.Main)
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}

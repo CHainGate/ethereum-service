@@ -30,7 +30,7 @@ func (r *AccountRepository) GetFree(mode enum.Mode) (*gorm.DB, *model.Account) {
 func (r *AccountRepository) Create(acc *model.Account) *model.Account {
 	createAccountResult := r.DB.Create(&acc)
 	if createAccountResult.Error != nil {
-		log.Fatal(createAccountResult.Error)
+		log.Printf("Unable to create Account in db: %v", createAccountResult.Error)
 	}
 	return acc
 }
@@ -38,7 +38,7 @@ func (r *AccountRepository) Create(acc *model.Account) *model.Account {
 func (r *AccountRepository) Update(acc *model.Account) error {
 	result := r.DB.Save(&acc)
 	if result.Error != nil {
-		log.Fatal(result.Error)
+		log.Println(result.Error)
 		return result.Error
 	}
 	return nil
