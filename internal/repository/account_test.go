@@ -23,7 +23,7 @@ func TestCreateAccount(t *testing.T) {
 
 func TestUpdateAccount(t *testing.T) {
 	mock, repo := NewAccountMock()
-	mock = testutils.SetupUpdateAccount(mock)
+	mock = testutils.SetupUpdateAccount(mock, 0)
 	ca := testutils.GetChaingateAcc()
 	repo.Update(&ca)
 	if err := mock.ExpectationsWereMet(); err != nil {
