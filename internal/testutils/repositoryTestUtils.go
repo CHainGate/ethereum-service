@@ -418,8 +418,21 @@ func SetupCreateAccount(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 	return mock
 }
 
-func SetupUpdateAccount(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
+func SetupUpdateAccount(mock sqlmock.Sqlmock, nonce uint64) sqlmock.Sqlmock {
 	ca := GetChaingateAcc()
+	ca.Nonce = nonce
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE \"accounts\"").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.PrivateKey, ca.Address, ca.Nonce, true, sqlmock.AnyArg(), ca.Mode, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	return mock
+}
+
+func SetupUpdateAccountWithRemainder(mock sqlmock.Sqlmock, nonce uint64, remainder *big.Int) sqlmock.Sqlmock {
+	ca := GetChaingateAcc()
+	ca.Nonce = nonce
+	ca.Remainder = model.NewBigInt(remainder)
 	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE \"accounts\"").
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.PrivateKey, ca.Address, ca.Nonce, true, ca.Remainder, ca.Mode, sqlmock.AnyArg()).

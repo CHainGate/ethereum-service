@@ -204,10 +204,20 @@ func confirm(client *ethclient.Client, payment *model.Payment) *types.Transactio
 	if tx == nil {
 		return nil
 	}
+	// account needs to explicit be updated, because the payment alone isn't enough. GORM tries to create a new one and fails.
+	if repository.Account.Update(payment.Account) != nil {
+		log.Printf("Couldn't write wallet to database: %+v\n\n", &payment.Account)
+	}
 	if updateState(payment, nil, enum.Forwarded) != nil {
 		return nil
 	}
-	bc.CheckForwardEarnings(client, payment.Account)
+	forwarded, _ := bc.CheckForwardEarnings(client, payment.Account)
+	if forwarded {
+		// account needs to explicit be updated, because the payment alone isn't enough. GORM tries to create a new one and fails.
+		if repository.Account.Update(payment.Account) != nil {
+			log.Printf("Couldn't write wallet to database: %+v\n\n", &payment.Account)
+		}
+	}
 	return tx
 }
 
