@@ -28,7 +28,7 @@ func CreatePayment(mode enum.Mode, priceAmount float64, priceCurrency string, wa
 	payment := model.Payment{
 		Mode:           mode,
 		AccountID:      acc.ID,
-		Account:        &acc,
+		Account:        acc,
 		PriceAmount:    priceAmount,
 		PriceCurrency:  priceCurrency,
 		MerchantWallet: wallet,
@@ -38,7 +38,7 @@ func CreatePayment(mode enum.Mode, priceAmount float64, priceCurrency string, wa
 
 	val := service.GetETHAmount(payment)
 	final := utils.GetWEIFromETH(val)
-	err = bc.CheckIfAmountIsTooLow(mode, final)
+	err = bc.CheckIfAmountIsTooLowMode(mode, final)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -75,7 +75,8 @@ func CheckBalanceNotify(payment *model.Payment, txValue *big.Int, blockNr *big.I
 	balance := big.NewInt(0).Add(&payment.CurrentPaymentState.AmountReceived.Int, txValue)
 	if payment.IsPaid(balance) {
 		var paid bool
-		paid, balance = bc.IsPaidOnChain(payment)
+		// Check if the whole amount is still correct no potential reversed tx
+		paid, balance = bc.IsPaidOnChain(payment, nil)
 		if paid {
 			Pay(payment, balance, blockNr, blockHash)
 		} else {
@@ -99,7 +100,7 @@ func CheckIncomingBlocks(client *ethclient.Client, currentBlockNr *big.Int, mode
 	}
 }
 
-func CheckOutgoingTx(client *ethclient.Client, currentBlockNr *big.Int, mode enum.Mode) {
+func CheckOutgoingTx(client *ethclient.Client, currentBlockNr *big.Int, mode enum.Mode, blockHash *common.Hash) {
 	payments := repository.Payment.GetFinishing(mode)
 	for _, p := range payments {
 		var txHash common.Hash
@@ -113,22 +114,28 @@ func CheckOutgoingTx(client *ethclient.Client, currentBlockNr *big.Int, mode enu
 
 		if isConfirmed {
 			finish(&p)
-		} else if err == utils.TxFailed {
-			log.Printf("Potential reverted Tx. Checkout blockNr: %v, Acc Address: %v", txHash, p.Account.Address)
-			finalBalanceOnChaingateWallet, err := bc.GetBalanceAt(client, common.HexToAddress(p.Account.Address))
-			if err != nil {
-				log.Printf("Error in getting balance in final recovery. Acc Address: %v", p.Account.Address)
+		} else if err == utils.BlockFailed {
+			log.Printf("Potential reverted Block. Checkout blockNr: %v, Acc Address: %v", txHash, p.Account.Address)
+			// Check if still enough funds on the address, because the tx could be mined again already
+			paid, balance := bc.IsPaidOnChain(&p, client)
+			if paid {
+				Pay(&p, balance, currentBlockNr, blockHash)
+			} else {
+				finalBalanceOnChaingateWallet, err := bc.GetBalanceAt(client, common.HexToAddress(p.Account.Address))
+				if err != nil {
+					log.Printf("Error in getting balance in final recovery. Acc Address: %v", p.Account.Address)
+				}
+				Fail(&p, finalBalanceOnChaingateWallet)
 			}
-			Fail(&p, finalBalanceOnChaingateWallet)
 		} else if err != nil {
 			log.Printf("Error in confirming tx. Acc Address: %v. Try again next confirming round", p.Account.Address)
 		}
 	}
 }
 
-func CheckConfirming(client *ethclient.Client, currentBlockNr *big.Int, mode enum.Mode) {
+func CheckConfirming(client *ethclient.Client, currentBlockNr *big.Int, mode enum.Mode, blockHash *common.Hash) {
 	go CheckIncomingBlocks(client, currentBlockNr, mode)
-	go CheckOutgoingTx(client, currentBlockNr, mode)
+	go CheckOutgoingTx(client, currentBlockNr, mode, blockHash)
 }
 
 func HandleConfirming(client *ethclient.Client, payment *model.Payment) *types.Transaction {
@@ -177,7 +184,7 @@ func Pay(payment *model.Payment, balance *big.Int, blockNr *big.Int, blockHash *
 func Expire(payment *model.Payment, balance *big.Int) {
 	payment.Account.Remainder = model.NewBigInt(balance)
 	payment.Account.Used = false
-	if repository.Account.Update(payment.Account) != nil {
+	if repository.Account.Update(&payment.Account) != nil {
 		log.Printf("Couldn't write wallet to database: %+v\n", &payment.Account)
 	}
 	if updateState(payment, nil, enum.Expired) != nil {
@@ -188,7 +195,7 @@ func Expire(payment *model.Payment, balance *big.Int) {
 func Fail(payment *model.Payment, balance *big.Int) {
 	payment.Account.Remainder = model.NewBigInt(balance)
 	payment.Account.Used = false
-	if repository.Account.Update(payment.Account) != nil {
+	if repository.Account.Update(&payment.Account) != nil {
 		log.Printf("Couldn't write wallet to database: %+v\n\n", &payment.Account)
 	}
 	if updateState(payment, nil, enum.Failed) != nil {
@@ -205,16 +212,16 @@ func confirm(client *ethclient.Client, payment *model.Payment) *types.Transactio
 		return nil
 	}
 	// account needs to explicit be updated, because the payment alone isn't enough. GORM tries to create a new one and fails.
-	if repository.Account.Update(payment.Account) != nil {
+	if repository.Account.Update(&payment.Account) != nil {
 		log.Printf("Couldn't write wallet to database: %+v\n\n", &payment.Account)
 	}
 	if updateState(payment, nil, enum.Forwarded) != nil {
 		return nil
 	}
-	forwarded, _ := bc.CheckForwardEarnings(client, payment.Account)
+	forwarded, _ := bc.CheckForwardEarnings(client, &payment.Account)
 	if forwarded {
 		// account needs to explicit be updated, because the payment alone isn't enough. GORM tries to create a new one and fails.
-		if repository.Account.Update(payment.Account) != nil {
+		if repository.Account.Update(&payment.Account) != nil {
 			log.Printf("Couldn't write wallet to database: %+v\n\n", &payment.Account)
 		}
 	}
@@ -223,7 +230,7 @@ func confirm(client *ethclient.Client, payment *model.Payment) *types.Transactio
 
 func finish(payment *model.Payment) {
 	payment.Account.Used = false
-	if repository.Account.Update(payment.Account) != nil {
+	if repository.Account.Update(&payment.Account) != nil {
 		log.Printf("Couldn't write wallet to database: %+v\n", &payment.Account)
 	}
 	updateState(payment, nil, enum.Finished)

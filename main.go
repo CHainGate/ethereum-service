@@ -73,7 +73,7 @@ func listenToEthChain(mode enum.Mode) {
 
 				}
 
-				controller.CheckConfirming(client, block.Number(), mode)
+				controller.CheckConfirming(client, block.Number(), mode, &hash)
 			}
 		}
 	}

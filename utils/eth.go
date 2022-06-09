@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-var TxFailed = errors.New("tx failed")
+var BlockFailed = errors.New("tx failed")
 
 func GetETHFromWEI(amount *big.Int) decimal.Decimal {
 	return decimal.NewFromBigInt(amount, 0).Div(decimal.NewFromFloat(params.Ether))

@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-var TxFailed = errors.New("tx failed")
+var BlockFailed = errors.New("block failed")
 
 /*
 	Subtracts the remainder, because this is the CHainGateEarnings
@@ -62,7 +62,7 @@ func IsTxConfirmed(client *ethclient.Client, txHash common.Hash, blockNr *big.In
 		return false, err
 	}
 	if tx.Status == 0 {
-		return false, TxFailed
+		return false, BlockFailed
 	}
 	hasEnoughConfirmations := big.NewInt(0).Add(tx.BlockNumber, big.NewInt(config.Opts.OutgoingTxConfirmations)).Cmp(blockNr) <= 0
 	return hasEnoughConfirmations, nil
@@ -71,8 +71,10 @@ func IsTxConfirmed(client *ethclient.Client, txHash common.Hash, blockNr *big.In
 /*
 	Check safely is paid, because it checks the balance on the address. Makes an API-Call to Ethereum.
 */
-func IsPaidOnChain(payment *model.Payment) (bool, *big.Int) {
-	client := GetClientByMode(payment.Mode)
+func IsPaidOnChain(payment *model.Payment, client *ethclient.Client) (bool, *big.Int) {
+	if client == nil {
+		client = GetClientByMode(payment.Mode)
+	}
 	balance, err := GetUserBalanceAt(client, common.HexToAddress(payment.Account.Address), &payment.Account.Remainder.Int)
 	if err != nil {
 		log.Printf("Error by getting balance %v", err)
@@ -84,9 +86,13 @@ func CheckIfExpired(payment *model.Payment) bool {
 	return payment.CreatedAt.Add(15 * time.Minute).Before(time.Now())
 }
 
-func CheckIfAmountIsTooLow(mode enum.Mode, final *big.Int) error {
-	fees := big.NewInt(0)
+func CheckIfAmountIsTooLowMode(mode enum.Mode, final *big.Int) error {
 	client := GetClientByMode(mode)
+	return CheckIfAmountIsTooLow(client, final)
+}
+
+func CheckIfAmountIsTooLow(client *ethclient.Client, final *big.Int) error {
+	fees := big.NewInt(0)
 	var gasPrice *big.Int
 	var err error
 	if config.Chain == nil {
@@ -132,7 +138,7 @@ func Forward(client *ethclient.Client, payment *model.Payment) *types.Transactio
 	feesAndChangateEarnings := big.NewInt(0).Add(fees, chainGateEarnings)
 	finalAmount := big.NewInt(0).Sub(payment.GetActiveAmount(), feesAndChangateEarnings)
 
-	signedTx := makeTransaction(client, payment.Account, gasPrice, finalAmount, toAddress)
+	signedTx := makeTransaction(client, &payment.Account, gasPrice, finalAmount, toAddress)
 
 	payment.ForwardingTransactionHash = signedTx.Hash().String()
 	return signedTx

@@ -34,7 +34,7 @@ var (
 
 func createEmptyPayment(acc model.Account, mAcc model.Account) *model.Payment {
 	return &model.Payment{
-		Account: &acc,
+		Account: acc,
 		Mode:    enum.Main,
 		Base: model.Base{
 			ID:        uuid.New(),
@@ -106,6 +106,14 @@ func addFinishedPaymentState(payment model.Payment) *model.Payment {
 func addFailedPaymentState(payment model.Payment) *model.Payment {
 	state := CreatePaymentState(payment.ID, payment.AccountID, enum.Failed, big.NewInt(0))
 	return addPaymentState(payment, state)
+}
+
+func GetNewChaingateAcc() model.Account {
+	chaingateAcc = model.CreateAccount(enum.Main)
+	chaingateAcc.ID = uuid.New()
+	chaingateAcc.CreatedAt = time.Now()
+	chaingateAcc.UpdatedAt = time.Now()
+	return *chaingateAcc
 }
 
 func GetChaingateAcc() model.Account {

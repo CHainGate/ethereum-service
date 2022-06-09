@@ -22,6 +22,32 @@ func TestSingleForward(t *testing.T) {
 	CreateForward(t, client, chaingateAcc, payAmount, 1)
 }
 
+func TestIsFalsyPaidOnChain(t *testing.T) {
+	config.ReadOpts()
+	_, client := testutils.CustomChainSetup(t)
+	p := testutils.GetPaidPayment()
+	paid, balance := IsPaidOnChain(&p, client)
+	if paid {
+		t.Fatalf(`It should't be paid with %v`, balance)
+	}
+	if balance.Cmp(big.NewInt(0)) != 0 {
+		t.Fatalf(`balance should be %v is %v`, 0, balance)
+	}
+}
+
+func TestIsPaidOnChain(t *testing.T) {
+	config.ReadOpts()
+	genesisAcc, client := testutils.CustomChainSetup(t)
+	chaingateAcc, payAmount := SetupFirstPayment(t, client, genesisAcc)
+	p := testutils.GetPaidPayment()
+	p.CurrentPaymentState.PayAmount = model.NewBigInt(payAmount)
+	p.Account = *chaingateAcc
+	paid, balance := IsPaidOnChain(&p, client)
+	if !paid {
+		t.Fatalf(`It should be paid with %v`, balance)
+	}
+}
+
 // https://rpc.info/
 func TestGetClientByMode(t *testing.T) {
 	config.CreateMainClientConnection("https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161")
@@ -55,7 +81,7 @@ func TestCheckForwardEarnings(t *testing.T) {
 		t.Fatalf("Can't wait until transaction is mined %v", err)
 	}
 	p.Account.Remainder = model.NewBigInt(overpayAmount)
-	check, tx := CheckForwardEarnings(client, p.Account)
+	check, tx := CheckForwardEarnings(client, &p.Account)
 	if !check {
 		t.Fatalf("Money should be forwarded, but function says no")
 	}
@@ -68,14 +94,34 @@ func TestWalletReusage(t *testing.T) {
 	config.ReadOpts()
 	genesisAcc, client := testutils.CustomChainSetup(t)
 	chaingateAcc, payAmount := SetupFirstPayment(t, client, genesisAcc)
-	CreateForward(t, client, chaingateAcc, payAmount, 1)
+	p := CreateForward(t, client, chaingateAcc, payAmount, 1)
 
 	txInitial := testutils.CreateInitialPayment(client, genesisAcc, payAmount, chaingateAcc.Address)
 	_, err := bind.WaitMined(context.Background(), client, txInitial)
 	if err != nil {
 		t.Fatalf("Can't wait until transaction is mined %v", err)
 	}
-	CreateForward(t, client, chaingateAcc, payAmount, 2)
+	CreateForward(t, client, &p.Account, payAmount, 2)
+}
+
+func TestCheckIfAmountIsTooLowFalse(t *testing.T) {
+	config.ReadOpts()
+	final := big.NewInt(1)
+	_, client := testutils.CustomChainSetup(t)
+	if CheckIfAmountIsTooLow(client, final) == nil {
+		t.Fatalf(`The amount should be too low with %v`, final.String())
+	}
+}
+
+func TestCheckIfAmountIsTooLowCorrect(t *testing.T) {
+	config.ReadOpts()
+	_, client := testutils.CustomChainSetup(t)
+	final := big.NewInt(100000000000000)
+	err := CheckIfAmountIsTooLow(client, final)
+	if err != nil {
+		println(err.Error())
+		t.Fatalf(`The amount should accepted with %v`, final.String())
+	}
 }
 
 func CreateForward(t *testing.T, client *ethclient.Client, chaingateAcc *model.Account, payAmount *big.Int, iteration uint64) model.Payment {
@@ -84,7 +130,7 @@ func CreateForward(t *testing.T, client *ethclient.Client, chaingateAcc *model.A
 	p := testutils.GetPaidPayment()
 	p.MerchantWallet = merchantAcc.Address
 	p.CurrentPaymentState.PayAmount = model.NewBigInt(payAmount)
-	p.Account = chaingateAcc
+	p.Account = *chaingateAcc
 
 	fromBalance, err := GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &p.Account.Remainder.Int)
 	if fromBalance.Cmp(payAmount) != 0 {
@@ -106,7 +152,7 @@ func CreateForward(t *testing.T, client *ethclient.Client, chaingateAcc *model.A
 	}
 
 	toBalance, err := GetUserBalanceAt(client, common.HexToAddress(merchantAcc.Address), &merchantAcc.Remainder.Int)
-	fromUserBalance, err := GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &chaingateAcc.Remainder.Int)
+	fromUserBalance, err := GetUserBalanceAt(client, common.HexToAddress(chaingateAcc.Address), &p.Account.Remainder.Int)
 	fromRealBalance, err := GetBalanceAt(client, common.HexToAddress(chaingateAcc.Address))
 	if err != nil {
 		t.Fatalf("Can't get balance %v", err)
