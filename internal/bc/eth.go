@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"log"
@@ -140,7 +139,10 @@ func Forward(client *ethclient.Client, payment *model.Payment) *types.Transactio
 
 	signedTx := makeTransaction(client, &payment.Account, gasPrice, finalAmount, toAddress)
 
-	payment.ForwardingTransactionHash = signedTx.Hash().String()
+	if signedTx != nil {
+		payment.ForwardingTransactionHash = signedTx.Hash().String()
+	}
+
 	return signedTx
 }
 
@@ -192,15 +194,6 @@ func makeTransaction(client *ethclient.Client, account *model.Account, gasPrice 
 	}
 
 	err = client.SendTransaction(context.Background(), signedTx)
-	if err == core.ErrNonceTooLow {
-		nonce, err := client.PendingNonceAt(context.Background(), common.HexToAddress(account.Address))
-		if err != nil {
-			log.Printf("Couldn't get Nonce %v", err)
-			return nil
-		}
-		account.Nonce = nonce
-		makeTransaction(client, account, gasPrice, finalAmount, toAddress)
-	}
 	if err != nil {
 		log.Printf("Unable to send Transaction %v", err)
 		return nil

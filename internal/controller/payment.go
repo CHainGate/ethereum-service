@@ -209,6 +209,11 @@ func confirm(client *ethclient.Client, payment *model.Payment) *types.Transactio
 	}
 	tx := bc.Forward(client, payment)
 	if tx == nil {
+		balance, err := bc.GetBalanceAt(client, common.HexToAddress(payment.Account.Address))
+		if err != nil {
+			return nil
+		}
+		Fail(payment, balance)
 		return nil
 	}
 	// account needs to explicit be updated, because the payment alone isn't enough. GORM tries to create a new one and fails.
