@@ -4,12 +4,13 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"ethereum-service/internal/config"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/shopspring/decimal"
 	"log"
 	"math/big"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/shopspring/decimal"
 )
 
 var BlockFailed = errors.New("tx failed")

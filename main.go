@@ -9,12 +9,13 @@ import (
 	repository "ethereum-service/internal/repository"
 	"ethereum-service/openApi"
 	"ethereum-service/services"
-	"github.com/CHainGate/backend/pkg/enum"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"strconv"
+
+	"github.com/CHainGate/backend/pkg/enum"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/gorilla/mux"
 )
 
 func main() {

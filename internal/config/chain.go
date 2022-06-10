@@ -2,9 +2,10 @@ package config
 
 import (
 	"fmt"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"log"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 type ChainConfig struct {
