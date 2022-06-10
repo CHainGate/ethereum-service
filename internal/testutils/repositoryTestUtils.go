@@ -5,12 +5,13 @@ import (
 	"ethereum-service/internal/config"
 	"ethereum-service/model"
 	"ethereum-service/utils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"log"
 	"math/big"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/DATA-DOG/go-sqlmock"
@@ -53,7 +54,7 @@ func createEmptyPayment(acc model.Account, mAcc model.Account) *model.Payment {
 func CreatePaymentState(paymentID uuid.UUID, accountID uuid.UUID, state enum.State, amountReceived *big.Int) model.PaymentState {
 	return model.PaymentState{
 		Base:           model.Base{ID: uuid.New(), CreatedAt: time.Now(), UpdatedAt: time.Now()},
-		StatusName:     state,
+		StateID:        state,
 		AccountID:      paymentID,
 		AmountReceived: model.NewBigInt(amountReceived),
 		PayAmount:      model.NewBigIntFromInt(100000000000000),
@@ -187,8 +188,8 @@ func getAccountRow(a model.Account) *sqlmock.Rows {
 }
 
 func getPaymentStatesRow(a model.Account, p model.Payment) *sqlmock.Rows {
-	return sqlmock.NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "account_id", "pay_amount", "amount_received", "status_name", "payment_id"}).
-		AddRow(p.CurrentPaymentStateId, time.Now(), time.Now(), time.Now(), a.ID, p.CurrentPaymentState.PayAmount, p.CurrentPaymentState.AmountReceived, p.CurrentPaymentState.StatusName, p.ID)
+	return sqlmock.NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "account_id", "pay_amount", "amount_received", "state_id", "payment_id"}).
+		AddRow(p.CurrentPaymentStateId, time.Now(), time.Now(), time.Now(), a.ID, p.CurrentPaymentState.PayAmount, p.CurrentPaymentState.AmountReceived, p.CurrentPaymentState.StateID, p.ID)
 }
 
 func SetupCreatePayment(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
@@ -242,9 +243,9 @@ func SetupAllPayments(mock sqlmock.Sqlmock, modes ...enum.Mode) sqlmock.Sqlmock 
 	ca := GetChaingateAcc()
 	paymentRows := sqlmock.NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "account_id", "merchant_wallet", "mode", "price_amount", "price_currency", "current_payment_state_id",
 		"CurrentPaymentState__id", "CurrentPaymentState__created_at", "CurrentPaymentState__updated_at", "CurrentPaymentState__deleted_at", "CurrentPaymentState__account_id", "CurrentPaymentState__pay_amount",
-		"CurrentPaymentState__amount_received", "CurrentPaymentState__status_name", "CurrentPaymentState__payment_id"}).
+		"CurrentPaymentState__amount_received", "CurrentPaymentState__state_id", "CurrentPaymentState__payment_id"}).
 		AddRow(wp.ID, time.Now(), time.Now(), time.Now(), ca.ID, ma.Address, wp.Mode, wp.PriceAmount, wp.PriceCurrency, wp.CurrentPaymentStateId,
-			wp.CurrentPaymentStateId, time.Now(), time.Now(), time.Now(), ca.ID, wp.CurrentPaymentState.PayAmount, wp.CurrentPaymentState.AmountReceived, wp.CurrentPaymentState.StatusName, wp.ID)
+			wp.CurrentPaymentStateId, time.Now(), time.Now(), time.Now(), ca.ID, wp.CurrentPaymentState.PayAmount, wp.CurrentPaymentState.AmountReceived, wp.CurrentPaymentState.StateID, wp.ID)
 
 	if len(modes) > 0 {
 		mock.ExpectQuery("SELECT (.+) FROM \"payments\"").
@@ -280,9 +281,9 @@ func SetupModePayments(mock sqlmock.Sqlmock, mode enum.Mode, state enum.State) s
 	ca := GetChaingateAcc()
 	paymentRows := sqlmock.NewRows([]string{"id", "created_at", "updated_at", "deleted_at", "account_id", "merchant_wallet", "mode", "price_amount", "price_currency", "current_payment_state_id",
 		"CurrentPaymentState__id", "CurrentPaymentState__created_at", "CurrentPaymentState__updated_at", "CurrentPaymentState__deleted_at", "CurrentPaymentState__account_id", "CurrentPaymentState__pay_amount",
-		"CurrentPaymentState__amount_received", "CurrentPaymentState__status_name", "CurrentPaymentState__payment_id"}).
+		"CurrentPaymentState__amount_received", "CurrentPaymentState__state_id", "CurrentPaymentState__payment_id"}).
 		AddRow(wp.ID, time.Now(), time.Now(), time.Now(), ca.ID, ma.Address, wp.Mode, wp.PriceAmount, wp.PriceCurrency, wp.CurrentPaymentStateId,
-			wp.CurrentPaymentStateId, time.Now(), time.Now(), time.Now(), ca.ID, wp.CurrentPaymentState.PayAmount, wp.CurrentPaymentState.AmountReceived, wp.CurrentPaymentState.StatusName, wp.ID)
+			wp.CurrentPaymentStateId, time.Now(), time.Now(), time.Now(), ca.ID, wp.CurrentPaymentState.PayAmount, wp.CurrentPaymentState.AmountReceived, wp.CurrentPaymentState.StateID, wp.ID)
 
 	mock.ExpectQuery("SELECT (.+) FROM \"payments\"").
 		WithArgs(mode, state).
@@ -313,7 +314,7 @@ func SetupUpdatePaymentState(mock sqlmock.Sqlmock) sqlmock.Sqlmock {
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.PrivateKey, ca.Address, ca.Nonce, ca.Used, ca.Remainder, ca.Mode, sqlmock.AnyArg()).
 		WillReturnRows(accRows)
 	mock.ExpectQuery("INSERT INTO \"payment_states\"").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.CurrentPaymentState.PayAmount, pp.CurrentPaymentState.AmountReceived, pp.CurrentPaymentState.StatusName, sqlmock.AnyArg()).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.CurrentPaymentState.PayAmount, pp.CurrentPaymentState.AmountReceived, pp.CurrentPaymentState.StateID, sqlmock.AnyArg()).
 		WillReturnRows(stateRows)
 	mock.ExpectExec("UPDATE").
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.MerchantWallet, pp.Mode, pp.PriceAmount, pp.PriceCurrency, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
@@ -378,7 +379,7 @@ func mockRequests(mock sqlmock.Sqlmock, amountPaid *big.Int, ca model.Account, a
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.PrivateKey, ca.Address, ca.Nonce, ca.Used, ca.Remainder, ca.Mode, sqlmock.AnyArg()).
 		WillReturnRows(accRows)
 	mock.ExpectQuery("INSERT INTO \"payment_states\"").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.CurrentPaymentState.PayAmount, model.NewBigInt(amountPaid), pp.CurrentPaymentState.StatusName, sqlmock.AnyArg()).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.CurrentPaymentState.PayAmount, model.NewBigInt(amountPaid), pp.CurrentPaymentState.StateID, sqlmock.AnyArg()).
 		WillReturnRows(stateRows)
 	mock.ExpectExec("UPDATE").
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), ca.ID, pp.MerchantWallet, pp.Mode, pp.PriceAmount, pp.PriceCurrency, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).

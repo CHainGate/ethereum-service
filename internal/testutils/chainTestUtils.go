@@ -6,6 +6,10 @@ import (
 	"ethereum-service/internal/config"
 	"ethereum-service/model"
 	"ethereum-service/utils"
+	"log"
+	"math/big"
+	"testing"
+
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -20,9 +24,6 @@ import (
 	geth "github.com/ethereum/go-ethereum/mobile"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
-	"log"
-	"math/big"
-	"testing"
 )
 
 func NewTestChain(t *testing.T, auth *bind.TransactOpts) *ethclient.Client {

@@ -7,6 +7,10 @@ import (
 	"ethereum-service/model"
 	"ethereum-service/utils"
 	"fmt"
+	"log"
+	"math/big"
+	"time"
+
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -14,9 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"log"
-	"math/big"
-	"time"
 )
 
 var BlockFailed = errors.New("block failed")

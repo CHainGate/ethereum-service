@@ -8,9 +8,10 @@ import (
 	"ethereum-service/model"
 	"ethereum-service/utils"
 	"fmt"
-	"github.com/CHainGate/backend/pkg/enum"
 	"log"
 	"math/big"
+
+	"github.com/CHainGate/backend/pkg/enum"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"

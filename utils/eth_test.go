@@ -1,9 +1,10 @@
 package utils
 
 import (
-	"github.com/shopspring/decimal"
 	"math/big"
 	"testing"
+
+	"github.com/shopspring/decimal"
 )
 
 func TestGetETHFromWEI(t *testing.T) {
