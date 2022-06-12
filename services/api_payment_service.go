@@ -38,7 +38,7 @@ func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequest op
 	}
 	payment, finalPayAmount, err := controller.CreatePayment(mode, paymentRequest.PriceAmount, paymentRequest.PriceCurrency, paymentRequest.Wallet)
 	if err != nil {
-		return openApi.Response(http.StatusInternalServerError, nil), fmt.Errorf("unable to get free address")
+		return openApi.Response(http.StatusInternalServerError, nil), err
 	}
 
 	paymentResponse := openApi.PaymentResponse{
