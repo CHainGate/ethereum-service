@@ -3,15 +3,16 @@ package utils
 import (
 	"math/big"
 	"testing"
-
-	"github.com/shopspring/decimal"
 )
 
 func TestGetETHFromWEI(t *testing.T) {
-	shouldEthAmount := decimal.New(1, -1)
+	f := new(big.Float)
+	f.SetPrec(236) //  IEEE 754 octuple-precision binary floating-point format: binary256
+	f.SetMode(big.ToNearestEven)
+	shouldEthAmount := f.Quo(big.NewFloat(1), big.NewFloat(10))
 	ethAmount := GetETHFromWEI(big.NewInt(100000000000000000))
-	if ethAmount.Cmp(shouldEthAmount) != 0 {
-		t.Fatalf(`The calculated ethAmount %v, should be: %v`, ethAmount, shouldEthAmount)
+	if ethAmount.Text('f', 18) != shouldEthAmount.Text('f', 18) {
+		t.Fatalf(`The calculated ethAmount %s, should be: %s`, ethAmount.Text('f', 18), shouldEthAmount.Text('f', 18))
 	}
 }
 
