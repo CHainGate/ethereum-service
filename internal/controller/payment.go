@@ -213,6 +213,7 @@ func confirm(client *ethclient.Client, payment *model.Payment) *types.Transactio
 		if err != nil {
 			return nil
 		}
+		// TODO: The payment shouldn't fail, when the error message is: "Unable to send Transaction already known"
 		Fail(payment, balance)
 		return nil
 	}

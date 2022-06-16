@@ -193,12 +193,14 @@ func makeTransaction(client *ethclient.Client, account *model.Account, gasPrice 
 		return nil
 	}
 
+	// TODO: "Unable to send Transaction already known" can happen when the block before is still waiting on line 204
 	err = client.SendTransaction(context.Background(), signedTx)
 	if err != nil {
 		log.Printf("Unable to send Transaction %v", err)
 		return nil
 	}
 
+	// TODO: Because we wait here there is a possibility, that the transaction is tried to send twice and it returns a "Unable to send Transaction already known"
 	_, err = bind.WaitMined(context.Background(), client, signedTx)
 	if err != nil {
 		log.Printf("Can't wait until transaction is mined %v", err)
