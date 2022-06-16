@@ -6,13 +6,14 @@ import (
 	"ethereum-service/internal/testutils"
 	"ethereum-service/model"
 	"ethereum-service/utils"
+	"math/big"
+	"strings"
+	"testing"
+
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"math/big"
-	"strings"
-	"testing"
 )
 
 func TestSingleForward(t *testing.T) {

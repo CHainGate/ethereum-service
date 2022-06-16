@@ -3,10 +3,11 @@ package model
 import (
 	"database/sql/driver"
 	"fmt"
-	"github.com/CHainGate/backend/pkg/enum"
 	"math/big"
 	"reflect"
 	"time"
+
+	"github.com/CHainGate/backend/pkg/enum"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -58,7 +59,7 @@ func (p *Payment) UpdatePaymentState(newState enum.State, balance *big.Int) Paym
 		balance = &p.CurrentPaymentState.AmountReceived.Int
 	}
 	state := PaymentState{
-		StatusName:     newState,
+		StateID:        newState,
 		AccountID:      p.AccountID,
 		AmountReceived: NewBigInt(balance),
 		PayAmount:      p.CurrentPaymentState.PayAmount,
@@ -79,7 +80,7 @@ func (p *Payment) IsPaid(balance *big.Int) bool {
 }
 
 func (p *Payment) IsConfirming() bool {
-	return p.CurrentPaymentState.StatusName == enum.Paid
+	return p.CurrentPaymentState.StateID == enum.Paid
 }
 
 /*
@@ -87,7 +88,7 @@ func (p *Payment) IsConfirming() bool {
 */
 func (p *Payment) AddNewPaymentState(newState enum.State, balance *big.Int, payAmount *big.Int) PaymentState {
 	state := PaymentState{
-		StatusName:     newState,
+		StateID:        newState,
 		AccountID:      p.AccountID,
 		AmountReceived: NewBigInt(balance),
 		PayAmount:      NewBigInt(payAmount),
@@ -103,16 +104,16 @@ type PaymentState struct {
 	AccountID      uuid.UUID `gorm:"type:uuid;"`
 	PayAmount      *BigInt   `gorm:"type:numeric(30);default:0"`
 	AmountReceived *BigInt   `gorm:"type:numeric(30);default:0"`
-	StatusName     enum.State
+	StateID        enum.State
 	PaymentID      uuid.UUID `gorm:"type:uuid"`
 }
 
 func (ps *PaymentState) IsWaitingForPayment() bool {
-	return ps.StatusName == enum.PartiallyPaid || ps.StatusName == enum.Waiting
+	return ps.StateID == enum.PartiallyPaid || ps.StateID == enum.Waiting
 }
 
 func (ps *PaymentState) IsPaid() bool {
-	return ps.StatusName == enum.Paid
+	return ps.StateID == enum.Paid
 }
 
 type BigInt struct {

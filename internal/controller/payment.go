@@ -8,9 +8,10 @@ import (
 	"ethereum-service/model"
 	"ethereum-service/utils"
 	"fmt"
-	"github.com/CHainGate/backend/pkg/enum"
 	"log"
 	"math/big"
+
+	"github.com/CHainGate/backend/pkg/enum"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -260,9 +261,9 @@ func CheckBalanceStartup(client *ethclient.Client, payment *model.Payment) {
 		updateState(payment, balance, enum.PartiallyPaid)
 	} else {
 		log.Printf("PAYMENT still not reached Address: %s", payment.Account.Address)
-		log.Printf("Current Payment: %s WEI, %s ETH", balance.String(), utils.GetETHFromWEI(balance).String())
-		log.Printf("Expected Payment: %s WEI, %s ETH", payment.GetActiveAmount().String(), utils.GetETHFromWEI(payment.GetActiveAmount()).String())
-		log.Printf("Please pay additional: %s WEI, %s ETH", big.NewInt(0).Sub(payment.GetActiveAmount(), balance).String(), utils.GetETHFromWEI(payment.GetActiveAmount()).Sub(utils.GetETHFromWEI(balance)).String())
+		log.Printf("Current Payment: %s WEI, %s ETH", balance.String(), utils.GetETHFromWEI(balance).Text('f', 18))
+		log.Printf("Expected Payment: %s WEI, %s ETH", payment.GetActiveAmount().String(), utils.GetETHFromWEI(payment.GetActiveAmount()).Text('f', 18))
+		log.Printf("Please pay additional: %s WEI, %s ETH", big.NewInt(0).Sub(payment.GetActiveAmount(), balance).String(), big.NewFloat(0.0).Sub(utils.GetETHFromWEI(payment.GetActiveAmount()), utils.GetETHFromWEI(balance)).Text('f', 18))
 		CheckPayment(payment, nil, nil, balance)
 	}
 }

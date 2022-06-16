@@ -2,9 +2,10 @@ package repository
 
 import (
 	"ethereum-service/model"
-	"github.com/CHainGate/backend/pkg/enum"
 	"log"
 	"math/big"
+
+	"github.com/CHainGate/backend/pkg/enum"
 
 	"gorm.io/gorm"
 )
@@ -42,7 +43,7 @@ func (r *PaymentRepository) GetAllOpen() []model.Payment {
 		Preload("CurrentPaymentState").
 		Preload("PaymentStates").
 		Joins("CurrentPaymentState").
-		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []enum.State{enum.Waiting, enum.PartiallyPaid}).
+		Where("\"CurrentPaymentState\".\"state_id\" IN ?", []enum.State{enum.Waiting, enum.PartiallyPaid}).
 		Find(&payments)
 	return payments
 }
@@ -55,7 +56,7 @@ func (r *PaymentRepository) GetOpenByMode(mode enum.Mode) []model.Payment {
 		Preload("CurrentPaymentState").
 		Preload("PaymentStates").
 		Joins("CurrentPaymentState").
-		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []enum.State{enum.Waiting, enum.PartiallyPaid}).
+		Where("\"CurrentPaymentState\".\"state_id\" IN ?", []enum.State{enum.Waiting, enum.PartiallyPaid}).
 		Find(&payments)
 	return payments
 }
@@ -67,7 +68,7 @@ func (r *PaymentRepository) GetConfirming(mode enum.Mode) []model.Payment {
 		Preload("Account").
 		Preload("CurrentPaymentState").
 		Joins("CurrentPaymentState").
-		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []enum.State{enum.Paid}).
+		Where("\"CurrentPaymentState\".\"state_id\" IN ?", []enum.State{enum.Paid}).
 		Find(&payments)
 	return payments
 }
@@ -79,7 +80,7 @@ func (r *PaymentRepository) GetFinishing(mode enum.Mode) []model.Payment {
 		Preload("Account").
 		Preload("CurrentPaymentState").
 		Joins("CurrentPaymentState").
-		Where("\"CurrentPaymentState\".\"status_name\" IN ?", []enum.State{enum.Forwarded}).
+		Where("\"CurrentPaymentState\".\"state_id\" IN ?", []enum.State{enum.Forwarded}).
 		Find(&payments)
 	return payments
 }

@@ -12,7 +12,7 @@ import (
 )
 
 func SendState(paymentId uuid.UUID, state model.PaymentState, txHash string) error {
-	paymentUpdateDto := *backendClientApi.NewPaymentUpdateDto(paymentId.String(), state.PayAmount.String(), "ETH", state.AmountReceived.String(), state.StatusName.String()) // PaymentUpdateDto |  (optional)
+	paymentUpdateDto := *backendClientApi.NewPaymentUpdateDto(paymentId.String(), state.PayAmount.String(), "ETH", state.AmountReceived.String(), state.StateID.String()) // PaymentUpdateDto |  (optional)
 	paymentUpdateDto.TxHash = &txHash
 
 	configuration := backendClientApi.NewConfiguration()
@@ -24,7 +24,7 @@ func SendState(paymentId uuid.UUID, state model.PaymentState, txHash string) err
 		fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", resp)
 		return err
 	} else {
-		fmt.Printf("Update sent: Payment %s updated to: %s\n", paymentId.String(), state.StatusName)
+		fmt.Printf("Update sent: Payment %s updated to: %s\n", paymentId.String(), state.StateID)
 	}
 	return nil
 }
